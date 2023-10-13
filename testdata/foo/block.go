@@ -10,10 +10,14 @@ import (
 )
 
 type Block struct {
-	ID             uuid.UUID    `db:"id,key"`
+	ID             uuid.UUID    `db:"id,key,auto" nil:"IsIDZero"`
 	ChainID        deps.ChainID `db:"chain_id"`
 	Hash           deps.Hash    `db:"hash,nullable" type:"string" value:".String" scan:"deps.HexToHash"`
 	Number         *big.Int     `db:"number" type:"int64" value:".Int64" scan:"big.NewInt"`
 	ParentHash     deps.Hash    `db:"parent_hash,nullable" type:"string" value:".String" scan:"deps.HexToHash"`
 	BlockTimestamp time.Time    `db:"block_timestamp,nullable,omitempty" scan:".UTC"`
+}
+
+func IsIDZero(id uuid.UUID) bool {
+	return id == uuid.UUID{}
 }

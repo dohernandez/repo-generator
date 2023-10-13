@@ -233,3 +233,119 @@ func (repo *TransferRepo) Create(ctx context.Context, m *Transfer) (*Transfer, e
 
 	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, sql, args...))
 }
+
+func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
+	// Build values query.
+	var (
+		valuesQueryBuilder strings.Builder
+		lms                = len(ms)
+	)
+
+	var cols []string
+	cols = append(cols, "id")
+	cols = append(cols, "chain_id")
+	cols = append(cols, "block_hash")
+	cols = append(cols, "block_timestamp")
+	cols = append(cols, "transaction_hash")
+	cols = append(cols, "method_id")
+	cols = append(cols, "from_address")
+	cols = append(cols, "to_address")
+	cols = append(cols, "asset_contract")
+	cols = append(cols, "value")
+	cols = append(cols, "metadata")
+	cols = append(cols, "trace_address")
+	cols = append(cols, "created_at")
+
+	lcols := len(cols)
+
+	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
+	args := make([]interface{}, lms*lcols)
+
+	for i := range ms {
+		m := ms[i]
+
+		indexOffset := i * lcols
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+
+		args = append(args, m.ID.String())
+
+		args = append(args, m.ChainID)
+
+		args = append(args, m.BlockHash.String())
+
+		args = append(args, m.BlockTimestamp)
+
+		var transactionHash sql.NullString
+
+		if m.TransactionHash != nil {
+			transactionHash.String = m.TransactionHash.String()
+			transactionHash.Valid = true
+		}
+
+		args = append(args, transactionHash)
+
+		var methodID sql.NullString
+
+		if m.MethodID != nil {
+			methodID.String = *m.MethodID
+			methodID.Valid = true
+		}
+
+		args = append(args, methodID)
+
+		args = append(args, m.FromAddress.String())
+
+		var toAddress sql.NullString
+
+		toAddress.String = m.ToAddress.String()
+		toAddress.Valid = true
+
+		args = append(args, toAddress)
+
+		args = append(args, m.AssetContract.String())
+
+		if m.Value != nil {
+			args = append(args, m.Value.Int64())
+		} else {
+			args = append(args, nil)
+		}
+
+		args = append(args, m.Metadata)
+
+		args = append(args, m.TraceAddress)
+
+		if !m.CreatedAt.IsZero() {
+			args = append(args, m.CreatedAt)
+		} else {
+			args = append(args, nil)
+		}
+
+	}
+
+	qCols := strings.Join(cols, ", ")
+
+	sql := "INSERT INTO %s (%s) VALUES (%s)"
+	sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
+
+	_, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return errors.Wrap(err, "exec context")
+	}
+
+	return nil
+}
+
+func (repo *TransferRepo) valuesStatement(cols []string, offset int, separator bool) string {
+	var sep string
+
+	if separator {
+		sep = ","
+	}
+
+	values := make([]string, len(cols))
+	for i := range cols {
+		values[i] = fmt.Sprintf("$%d", offset+(i+1))
+	}
+
+	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
+}

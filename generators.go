@@ -71,10 +71,11 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 
 			return " AND"
 		},
-		"fieldToSql": fieldToSql,
-		"fieldType":  fieldType,
-		"scanField":  scanField,
-		"sqlToField": sqlToField,
+		"fieldToCreateSql": fieldToCreateSql,
+		"fieldType":        fieldType,
+		"scanField":        scanField,
+		"sqlToField":       sqlToField,
+		"fieldToInsertSql": fieldToInsertSql,
 	}
 
 	t, err := template.New(repoTplFilename).Funcs(funcMap).ParseFS(repoTpl, repoTplFilename)
@@ -103,7 +104,7 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 	return nil
 }
 
-func fieldToSql(f any) string {
+func fieldToCreateSql(f any) string {
 	fd, ok := f.(Field)
 	if !ok {
 		return ""
@@ -279,10 +280,8 @@ func tmplFieldValueMethod(f Field, a string) string {
 		return a
 	}
 
-	scan := fmt.Sprintf("%s.%s()", a, f.Value.Name)
-
 	if f.Value.Pkg == "_" {
-		return scan
+		return fmt.Sprintf("%s.%s()", a, f.Value.Name)
 	}
 
 	if f.Value.Pkg != "" {
@@ -443,10 +442,8 @@ func tmplFieldSanMethod(f Field, a string) string {
 		return a
 	}
 
-	scan := fmt.Sprintf("%s.%s()", a, f.Scan.Name)
-
 	if f.Scan.Pkg == "_" {
-		return scan
+		return fmt.Sprintf("%s.%s()", a, f.Scan.Name)
 	}
 
 	if f.Scan.Pkg != "" {
@@ -454,4 +451,191 @@ func tmplFieldSanMethod(f Field, a string) string {
 	}
 
 	return fmt.Sprintf("%s(%s)", f.Scan.Name, a)
+}
+
+func fieldToInsertSql(f any) string {
+	fd, ok := f.(Field)
+	if !ok {
+		return ""
+	}
+
+	if fd.Auto {
+		fd.OmittedEmpty = true
+	}
+
+	if fd.IsArrayable {
+		value := tmplFieldValueMethod(fd, fmt.Sprintf("m.%s[i]", fd.Name))
+
+		tmpl := `
+			%[1]ss := make([]%[2]s, len(m.%[3]s))
+
+			for i := range m.%[3]s {
+				%[1]ss[i] = %[4]s
+			}
+
+			args = append(args, %[1]ss)
+			`
+
+		if fd.IsPointer && !fd.HasValueMethod {
+			value = fmt.Sprintf("*%s", value)
+		}
+
+		return fmt.Sprintf(tmpl, fd.LowerCaseName, fd.SqlType, fd.Name, value)
+	}
+
+	tmpl := `
+		args = append(args, %[1]s)
+		`
+
+	value := tmplFieldValueMethod(fd, fmt.Sprintf("m.%s", fd.Name))
+
+	if fd.IsNullable || fd.OmittedEmpty {
+		tnullable := fmt.Sprintf("%s.%s", fd.LowerCaseName, fd.SqlNullable.set)
+
+		// It is only nullable.
+		if !fd.OmittedEmpty {
+			// Has a nullable type.
+			if !fd.HasSqlNullable {
+				return fmt.Sprintf(tmpl, value)
+			}
+
+			tmpl = `
+				var %[1]s %[2]s
+
+				%[3]s = %[4]s
+				%[1]s.Valid = true
+
+				args = append(args, %[1]s)
+				`
+
+			if fd.IsPointer && !fd.HasValueMethod {
+				value = fmt.Sprintf("*%s", value)
+			}
+
+			return fmt.Sprintf(tmpl, fd.LowerCaseName, fd.SqlType, tnullable, value)
+		}
+
+		var ifEmpty string
+
+		if fd.IsPointer {
+			ifEmpty = fmt.Sprintf("m.%s != nil", fd.Name)
+		} else {
+			switch fd.Type {
+			case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "float32", "float64":
+				ifEmpty = fmt.Sprintf("m.%s != 0", fd.Name)
+			case "time.Time":
+				ifEmpty = fmt.Sprintf("!m.%s.IsZero()", fd.Name)
+			case "string":
+				ifEmpty = fmt.Sprintf("m.%s != \"\"", fd.Name)
+			default:
+				if fd.HasNilMethod {
+					ifEmpty = "!" + tmplFieldNilMethod(fd, fmt.Sprintf("m.%s", fd.Name))
+				}
+			}
+		}
+
+		// It is only omitted empty.
+		if !fd.IsNullable {
+			if ifEmpty != "" {
+				tmpl = `
+					if %[2]s {
+						args = append(args, %[1]s)
+					} else {
+						args = append(args, nil)
+					}
+					`
+
+				if fd.IsPointer && !fd.HasValueMethod {
+					value = fmt.Sprintf("*%s", value)
+				}
+			}
+
+			return fmt.Sprintf(tmpl, value, ifEmpty)
+		}
+
+		// It is nullable and omitted empty.
+		if ifEmpty != "" {
+			tmpl = `
+				var %[2]s %[3]s
+				
+				if %[1]s {
+					%[4]s = %[5]s
+					%[2]s.Valid = true
+				}
+				
+				args = append(args, %[2]s)
+				`
+
+			if !fd.HasSqlNullable {
+				tmpl = `
+					if %[1]s {
+						args = append(args, %[2]s)
+					} else {
+						args = append(args, nil)
+					}
+					`
+			}
+
+			if fd.IsPointer && !fd.HasValueMethod {
+				value = fmt.Sprintf("*%s", value)
+			}
+
+			return fmt.Sprintf(tmpl, ifEmpty, fd.LowerCaseName, fd.SqlType, tnullable, value)
+		}
+
+		if fd.HasSqlNullable {
+			tmpl = `
+				var %[1]s %[2]s
+
+				%[3]s = %[4]s
+				%[1]s.Valid = true
+
+				args = append(args, %[1]s)
+				`
+
+			if fd.IsPointer && !fd.HasValueMethod {
+				value = fmt.Sprintf("*%s", value)
+			}
+
+			return fmt.Sprintf(tmpl, fd.LowerCaseName, fd.SqlType, tnullable, value)
+		}
+
+		if fd.IsPointer && !fd.HasValueMethod {
+			value = fmt.Sprintf("*%s", value)
+		}
+
+		return fmt.Sprintf(tmpl, value)
+	}
+
+	if fd.IsPointer {
+		tmpl = `
+			if m.%[2]s != nil {
+				args = append(args, %[1]s)
+			} else {
+				args = append(args, nil)
+			}
+			`
+
+		if !fd.HasValueMethod {
+			value = fmt.Sprintf("*m.%s", fd.Name)
+		}
+	}
+
+	return fmt.Sprintf(tmpl, value, fd.Name)
+}
+
+func tmplFieldNilMethod(f Field, a string) string {
+	if !f.HasNilMethod {
+		return a
+	}
+
+	if f.Nil.Pkg == "_" {
+		return fmt.Sprintf("%s.%s()", a, f.Nil.Name)
+	}
+
+	if f.Nil.Pkg != "" {
+		return fmt.Sprintf("%s.%s(%s)", f.Nil.Pkg, f.Nil.Name, a)
+	}
+
+	return fmt.Sprintf("%s(%s)", f.Nil.Name, a)
 }

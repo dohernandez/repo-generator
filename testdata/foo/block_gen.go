@@ -171,14 +171,103 @@ func (repo *BlockRepo) Create(ctx context.Context, m *Block) (*Block, error) {
 	qCols := strings.Join(cols, ", ")
 	qValues := strings.Join(values, ", ")
 
+	rCols := strings.Join(repo.cols, ", ")
+
+	sql := "INSERT INTO %s (%s) VALUES (%s) RETURNING %s"
+	sql = fmt.Sprintf(sql, repo.table, qCols, qValues, rCols)
+
+	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, sql, args...))
+}
+
+func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
+	// Build values query.
+	var (
+		valuesQueryBuilder strings.Builder
+		lms                = len(ms)
+	)
+
+	var cols []string
+	cols = append(cols, "id")
+	cols = append(cols, "chain_id")
+	cols = append(cols, "hash")
+	cols = append(cols, "number")
+	cols = append(cols, "parent_hash")
+	cols = append(cols, "block_timestamp")
+
+	lcols := len(cols)
+
+	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
+	args := make([]interface{}, lms*lcols)
+
+	for i := range ms {
+		m := ms[i]
+
+		indexOffset := i * lcols
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+
+		if !IsIDZero(m.ID) {
+			args = append(args, m.ID)
+		} else {
+			args = append(args, nil)
+		}
+
+		args = append(args, m.ChainID)
+
+		var hash sql.NullString
+
+		hash.String = m.Hash.String()
+		hash.Valid = true
+
+		args = append(args, hash)
+
+		if m.Number != nil {
+			args = append(args, m.Number.Int64())
+		} else {
+			args = append(args, nil)
+		}
+
+		var parentHash sql.NullString
+
+		parentHash.String = m.ParentHash.String()
+		parentHash.Valid = true
+
+		args = append(args, parentHash)
+
+		var blockTimestamp sql.NullTime
+
+		if !m.BlockTimestamp.IsZero() {
+			blockTimestamp.Time = m.BlockTimestamp
+			blockTimestamp.Valid = true
+		}
+
+		args = append(args, blockTimestamp)
+
+	}
+
+	qCols := strings.Join(cols, ", ")
+
 	sql := "INSERT INTO %s (%s) VALUES (%s)"
-	sql = fmt.Sprintf(sql, repo.table, qCols, qValues)
+	sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		return nil, errors.Wrap(err, "exec context")
+		return errors.Wrap(err, "exec context")
 	}
 
-	return m, nil
+	return nil
+}
 
+func (repo *BlockRepo) valuesStatement(cols []string, offset int, separator bool) string {
+	var sep string
+
+	if separator {
+		sep = ","
+	}
+
+	values := make([]string, len(cols))
+	for i := range cols {
+		values[i] = fmt.Sprintf("$%d", offset+(i+1))
+	}
+
+	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }

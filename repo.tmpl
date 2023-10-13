@@ -121,10 +121,10 @@ func ({{ .Repo.Receiver }} *{{ .Repo.Model.Name }}Repo) Create(ctx context.Conte
     )
 
     {{- range $i, $field := .Repo.ColKeysFields }}
-        {{ $field | fieldToSql }}
+        {{ $field | fieldToCreateSql }}
     {{- end }}
     {{- range $i, $field := .Repo.ColStatesFields }}
-        {{ $field | fieldToSql }}
+        {{ $field | fieldToCreateSql }}
     {{- end }}
 
     values := make([]string, len(cols))
@@ -156,3 +156,67 @@ func ({{ .Repo.Receiver }} *{{ .Repo.Model.Name }}Repo) Create(ctx context.Conte
     return  m, nil
 }
     {{end}}
+
+func ({{ .Repo.Receiver }} *{{ .Repo.Model.Name }}Repo) Insert(ctx context.Context, ms ...*{{ .Repo.Model.Name }}) error {
+    // Build values query.
+    var (
+        valuesQueryBuilder strings.Builder
+        lms = len(ms)
+    )
+
+    var cols []string
+
+    {{- range $i, $field := .Repo.ColKeysFields }}
+        cols = append(cols, "{{ $field.ColName }}")
+    {{- end }}
+    {{- range $i, $field := .Repo.ColStatesFields }}
+        cols = append(cols, "{{ $field.ColName }}")
+    {{- end }}
+
+    lcols := len(cols)
+
+    // Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
+    args := make([]interface{},lms*lcols)
+
+    for i := range ms {
+        m := ms[i]
+
+        indexOffset := i * lcols
+        valuesQueryBuilder.WriteString({{ .Repo.Receiver }}.valuesStatement(cols, indexOffset, i != lms-1))
+
+
+        {{- range $i, $field := .Repo.ColKeysFields }}
+            {{ $field | fieldToInsertSql }}
+        {{- end }}
+        {{- range $i, $field := .Repo.ColStatesFields }}
+            {{ $field | fieldToInsertSql }}
+        {{- end }}
+    }
+
+    qCols := strings.Join(cols, ", ")
+
+    sql := "INSERT INTO %s (%s) VALUES (%s)"
+    sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
+
+    _, err := {{ .Repo.Receiver }}.db.ExecContext(ctx, sql, args...)
+    if err != nil {
+        return errors.Wrap(err, "exec context")
+    }
+
+    return  nil
+}
+
+func ({{ .Repo.Receiver }} *{{ .Repo.Model.Name }}Repo) valuesStatement(cols []string, offset int, separator bool) string {
+    var sep string
+
+    if separator {
+        sep = ","
+    }
+
+    values := make([]string, len(cols))
+    for i := range cols {
+        values[i] = fmt.Sprintf("$%d", offset+(i+1))
+    }
+
+    return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
+}

@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	columnTag       = "db"
-	columnTypeTag   = "type"
-	columnTScanTag  = "scan"
-	columnTValueTag = "value"
+	columnTag      = "db"
+	columnTypeTag  = "type"
+	columnScanTag  = "scan"
+	columnValueTag = "value"
+	columnNilTag   = "nil"
 
 	columnNullableOpt  = "nullable"
 	columnIsKeyOpt     = "key"
@@ -78,6 +79,11 @@ type Field struct {
 
 	// Value is the method used to get the column value.
 	Value Method
+
+	HasNilMethod bool
+
+	// Value is the method used to get the column value.
+	Nil Method
 }
 
 type Model struct {
@@ -177,10 +183,12 @@ func parseField(field *ast.Field) (Field, error) {
 		sNullable  sqltype
 		sArrayable sqlarrayable
 
-		hasSqlNullable bool
-		hasScanMethod  bool
 		hasValueMethod bool
 		hasArrayable   bool
+
+		hasSqlNullable bool
+		hasScanMethod  bool
+		hasNilMethod   bool
 	)
 
 	switch t := field.Type.(type) {
@@ -245,6 +253,11 @@ func parseField(field *ast.Field) (Field, error) {
 		hasValueMethod = true
 	}
 
+	nMethod := parseTagNil(field)
+	if nMethod != (Method{}) {
+		hasNilMethod = true
+	}
+
 	name := field.Names[0].Name
 
 	return Field{
@@ -273,6 +286,8 @@ func parseField(field *ast.Field) (Field, error) {
 		HasScanMethod:  hasScanMethod,
 		Value:          vMethod,
 		HasValueMethod: hasValueMethod,
+		Nil:            nMethod,
+		HasNilMethod:   hasNilMethod,
 	}, nil
 }
 
@@ -338,11 +353,15 @@ func parseTagType(field *ast.Field) string {
 }
 
 func parseTagScan(field *ast.Field) Method {
-	return parseTagMethod(field, columnTScanTag)
+	return parseTagMethod(field, columnScanTag)
 }
 
 func parseTagValue(field *ast.Field) Method {
-	return parseTagMethod(field, columnTValueTag)
+	return parseTagMethod(field, columnValueTag)
+}
+
+func parseTagNil(field *ast.Field) Method {
+	return parseTagMethod(field, columnNilTag)
 }
 
 func parseTagMethod(field *ast.Field, tag string) Method {

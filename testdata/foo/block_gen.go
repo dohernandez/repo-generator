@@ -197,7 +197,7 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 	lcols := len(cols)
 
 	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
-	args := make([]interface{}, lms*lcols)
+	args := make([]interface{}, 0, lms*lcols)
 
 	for i := range ms {
 		m := ms[i]
@@ -246,8 +246,11 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 
 	qCols := strings.Join(cols, ", ")
 
-	sql := "INSERT INTO %s (%s) VALUES (%s)"
+	sql := "INSERT INTO %s (%s) VALUES %s"
 	sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
+
+	println(sql)
+	println(fmt.Sprintf("%+v", args))
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {

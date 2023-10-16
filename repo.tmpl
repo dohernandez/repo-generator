@@ -176,7 +176,7 @@ func ({{ .Repo.Receiver }} *{{ .Repo.Model.Name }}Repo) Insert(ctx context.Conte
     lcols := len(cols)
 
     // Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
-    args := make([]interface{},lms*lcols)
+    args := make([]interface{}, 0, lms*lcols)
 
     for i := range ms {
         m := ms[i]
@@ -195,7 +195,7 @@ func ({{ .Repo.Receiver }} *{{ .Repo.Model.Name }}Repo) Insert(ctx context.Conte
 
     qCols := strings.Join(cols, ", ")
 
-    sql := "INSERT INTO %s (%s) VALUES (%s)"
+    sql := "INSERT INTO %s (%s) VALUES %s"
     sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
 
     _, err := {{ .Repo.Receiver }}.db.ExecContext(ctx, sql, args...)

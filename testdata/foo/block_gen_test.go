@@ -41,7 +41,7 @@ func TestBlockRepo_Create(t *testing.T) {
 			Hash:           deps.HexToHash("0x0"),
 			Number:         big.NewInt(0),
 			ChainID:        deps.EthereumChainID,
-			BlockTimestamp: now,
+			BlockTimestamp: now.UTC(),
 		})
 		require.NoError(t, err)
 		require.NotEmpty(t, b)
@@ -50,7 +50,7 @@ func TestBlockRepo_Create(t *testing.T) {
 		require.Equal(t, deps.EthereumChainID, b.ChainID)
 		require.Equal(t, big.NewInt(0), b.Number)
 		require.Equal(t, deps.HexToHash("0x0"), b.Hash)
-		require.Equal(t, b.BlockTimestamp, now)
+		require.Equal(t, b.BlockTimestamp, now.UTC())
 	})
 }
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/dohernandez/errors"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/google/uuid"
 )
 
 type Hash = common.Hash
@@ -146,4 +147,14 @@ func (m *ContractMetadata) UnmarshalJSON(data []byte) error {
 	*m = md
 
 	return nil
+}
+
+type State string
+
+func (s State) String() string {
+	return string(s)
+}
+
+func IsUUIDZero(u uuid.UUID) bool {
+	return u == uuid.Nil
 }

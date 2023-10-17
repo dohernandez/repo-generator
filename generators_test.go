@@ -66,3 +66,15 @@ func TestGenerate_Cursor(t *testing.T) {
 	)
 	require.NoError(t, err)
 }
+
+func TestGenerate_Sync(t *testing.T) {
+	err := generator.Generate(
+		"testdata/foo/sync.go",
+		"testdata/foo/sync_gen.go",
+		"Sync",
+		generator.WithImports([]string{
+			"github.com/dohernandez/repo-generator/testdata/deps",
+		}),
+	)
+	require.NoError(t, err)
+}

@@ -182,6 +182,10 @@ func fieldToCreateSql(f any) string {
 				ifEmpty = fmt.Sprintf("!m.%s.IsZero()", fd.Name)
 			case "string":
 				ifEmpty = fmt.Sprintf("m.%s != \"\"", fd.Name)
+			default:
+				if fd.HasNilMethod {
+					ifEmpty = "!" + tmplFieldNilMethod(fd, fmt.Sprintf("m.%s", fd.Name))
+				}
 			}
 		}
 

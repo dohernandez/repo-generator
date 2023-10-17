@@ -205,7 +205,7 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 		indexOffset := i * lcols
 		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
 
-		if !IsIDZero(m.ID) {
+		if !deps.IsUUIDZero(m.ID) {
 			args = append(args, m.ID)
 		} else {
 			args = append(args, nil)

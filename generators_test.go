@@ -49,9 +49,19 @@ func TestGenerate_Transfer(t *testing.T) {
 		"testdata/foo/transfer_gen.go",
 		"Transfer",
 		generator.WithImports([]string{
-			//"github.com/google/uuid",
 			"github.com/dohernandez/repo-generator/testdata/deps",
-			//"github.com/lib/pq",
+		}),
+	)
+	require.NoError(t, err)
+}
+
+func TestGenerate_Cursor(t *testing.T) {
+	err := generator.Generate(
+		"testdata/foo/cursor.go",
+		"testdata/foo/cursor_gen.go",
+		"Cursor",
+		generator.WithImports([]string{
+			"github.com/google/uuid",
 		}),
 	)
 	require.NoError(t, err)

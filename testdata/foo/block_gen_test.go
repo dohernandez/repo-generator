@@ -1,8 +1,7 @@
-package foo
+package foo_test
 
 import (
 	"context"
-	"embed"
 	"math/big"
 	"testing"
 	"time"
@@ -10,14 +9,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/dohernandez/repo-generator/postgres"
 	"github.com/dohernandez/repo-generator/testdata/deps"
+	"github.com/dohernandez/repo-generator/testdata/foo"
 )
 
-const table = "block"
-
-//go:embed testdata/migrations/*.sql
-var migrations embed.FS
+const blockTable = "block"
 
 func TestBlockRepo_Create(t *testing.T) {
 	t.Parallel()
@@ -27,16 +23,16 @@ func TestBlockRepo_Create(t *testing.T) {
 	t.Run("insert successfully", func(t *testing.T) {
 		t.Parallel()
 
-		conn, err := postgres.ConnectForTesting(t, migrations)
+		conn, err := postgresConnect(t)
 		require.NoError(t, err)
 		require.NotEmpty(t, conn)
 
-		repo := NewBlockRepo(conn, table)
+		repo := foo.NewBlockRepo(conn, blockTable)
 
 		id := uuid.New()
 		now := time.Now()
 
-		b, err := repo.Create(ctx, &Block{
+		b, err := repo.Create(ctx, &foo.Block{
 			ID:             id,
 			Hash:           deps.HexToHash("0x0"),
 			Number:         big.NewInt(0),
@@ -62,21 +58,21 @@ func TestBlockRepo_Insert(t *testing.T) {
 	t.Run("insert successfully", func(t *testing.T) {
 		t.Parallel()
 
-		conn, err := postgres.ConnectForTesting(t, migrations)
+		conn, err := postgresConnect(t)
 		require.NoError(t, err)
 		require.NotEmpty(t, conn)
 
-		repo := NewBlockRepo(conn, table)
+		repo := foo.NewBlockRepo(conn, blockTable)
 
 		err = repo.Insert(ctx,
-			&Block{
+			&foo.Block{
 				ID:             uuid.New(),
 				Hash:           deps.HexToHash("0x0"),
 				Number:         big.NewInt(0),
 				ChainID:        deps.EthereumChainID,
 				BlockTimestamp: time.Now(),
 			},
-			&Block{
+			&foo.Block{
 				ID:             uuid.New(),
 				Hash:           deps.HexToHash("0x1"),
 				Number:         big.NewInt(1),
@@ -84,7 +80,7 @@ func TestBlockRepo_Insert(t *testing.T) {
 				BlockTimestamp: time.Now(),
 				ParentHash:     deps.HexToHash("0x0"),
 			},
-			&Block{
+			&foo.Block{
 				ID:             uuid.New(),
 				Hash:           deps.HexToHash("0x2"),
 				Number:         big.NewInt(2),

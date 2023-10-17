@@ -13,9 +13,6 @@ func TestGenerate_Network(t *testing.T) {
 		"testdata/foo/network.go",
 		"testdata/foo/network_gen.go",
 		"Network",
-		generator.WithImports([]string{
-			"math/big",
-		}),
 	)
 	require.NoError(t, err)
 }
@@ -28,7 +25,6 @@ func TestGenerate_Block(t *testing.T) {
 		generator.WithImports([]string{
 			//"github.com/google/uuid",
 			"github.com/dohernandez/repo-generator/testdata/deps",
-			"math/big",
 		}),
 	)
 	require.NoError(t, err)
@@ -55,22 +51,7 @@ func TestGenerate_Transfer(t *testing.T) {
 		generator.WithImports([]string{
 			//"github.com/google/uuid",
 			"github.com/dohernandez/repo-generator/testdata/deps",
-			"math/big",
-			"time",
 			//"github.com/lib/pq",
-		}),
-	)
-	require.NoError(t, err)
-}
-
-func TestGenerate_Indexer(t *testing.T) {
-	err := generator.Generate(
-		"testdata/foo/indexer.go",
-		"testdata/foo/indexer_gen.go",
-		"Indexer",
-		generator.WithImports([]string{
-			"github.com/dohernandez/repo-generator/testdata/deps",
-			"math/big",
 		}),
 	)
 	require.NoError(t, err)

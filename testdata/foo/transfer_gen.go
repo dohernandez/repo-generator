@@ -6,7 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/dohernandez/repo-generator/errors"
+	"github.com/dohernandez/errors"
 	"github.com/dohernandez/repo-generator/testdata/deps"
 	"math/big"
 	"strings"
@@ -101,7 +101,7 @@ func (repo *TransferRepo) Scan(_ context.Context, s TransferScanner) (*Transfer,
 			return nil, ErrTransferNotFound
 		}
 
-		return nil, errors.WrapWithError(err, ErrTransferScan)
+		return nil, errors.WrapError(err, ErrTransferScan)
 	}
 
 	m.BlockHash = deps.HexToHash(blockHash)
@@ -259,7 +259,7 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 	lcols := len(cols)
 
 	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
-	args := make([]interface{}, lms*lcols)
+	args := make([]interface{}, 0, lms*lcols)
 
 	for i := range ms {
 		m := ms[i]
@@ -324,7 +324,7 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 
 	qCols := strings.Join(cols, ", ")
 
-	sql := "INSERT INTO %s (%s) VALUES (%s)"
+	sql := "INSERT INTO %s (%s) VALUES %s"
 	sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)

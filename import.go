@@ -1,10 +1,21 @@
 package generator
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/dohernandez/errors"
+)
+
+var nativeImports = map[string]string{
+	"time": "time",
+	"big":  "math/big",
+}
 
 var defaultImports = map[string]string{
-	"errors": "github.com/dohernandez/repo-generator/errors",
+	"errors": "github.com/dohernandez/errors",
 }
+
+var ErrPackageNotFound = errors.New("package not found")
 
 // PackageImport defines a package which was imported in a Go file.
 type PackageImport struct {
@@ -20,6 +31,33 @@ func parseImports(imports []string, r Repo) (map[string]PackageImport, error) {
 	for k, i := range defaultImports {
 		pImports[k] = PackageImport{
 			Path: i,
+		}
+	}
+
+	for _, f := range r.Model.Fields {
+		if f.HasSqlNullable {
+			continue
+		}
+
+		parts := strings.Split(f.Type, ".")
+
+		if len(parts) <= 1 {
+			continue
+		}
+
+		pkg := parts[0]
+
+		path, ok := nativeImports[pkg]
+		if !ok {
+			continue
+		}
+
+		if !f.HasScanMethod {
+			continue
+		}
+
+		pImports[pkg] = PackageImport{
+			Path: path,
 		}
 	}
 
@@ -42,16 +80,6 @@ func parseImports(imports []string, r Repo) (map[string]PackageImport, error) {
 			Path:  path,
 		}
 	}
-
-	//for _, f := range r.Model.Fields {
-	//	if f.Type == "time.Time" {
-	//		pImports["time"] = PackageImport{
-	//			Path: "time",
-	//		}
-	//
-	//		break
-	//	}
-	//}
 
 	// TODO: sort imports
 	return pImports, nil

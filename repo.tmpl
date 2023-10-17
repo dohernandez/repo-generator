@@ -82,7 +82,7 @@ func ({{ .Repo.Receiver }} *{{ .Repo.Model.Name }}Repo) Scan(_ context.Context, 
             return nil, Err{{ .Repo.Model.Name }}NotFound
         }
 
-        return nil, errors.WrapWithError(err, Err{{ .Repo.Model.Name }}Scan)
+        return nil, errors.WrapError(err, Err{{ .Repo.Model.Name }}Scan)
     }
 
     {{- range $i, $field := .Repo.ColKeysFields }}

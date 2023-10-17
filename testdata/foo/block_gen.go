@@ -6,7 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/dohernandez/repo-generator/errors"
+	"github.com/dohernandez/errors"
 	"github.com/dohernandez/repo-generator/testdata/deps"
 	"math/big"
 	"strings"
@@ -80,7 +80,7 @@ func (repo *BlockRepo) Scan(_ context.Context, s BlockScanner) (*Block, error) {
 			return nil, ErrBlockNotFound
 		}
 
-		return nil, errors.WrapWithError(err, ErrBlockScan)
+		return nil, errors.WrapError(err, ErrBlockScan)
 	}
 
 	if hash.Valid {
@@ -248,9 +248,6 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 
 	sql := "INSERT INTO %s (%s) VALUES %s"
 	sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
-
-	println(sql)
-	println(fmt.Sprintf("%+v", args))
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {

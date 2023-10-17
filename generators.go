@@ -10,9 +10,8 @@ import (
 	"os"
 	"text/template"
 
+	"github.com/dohernandez/errors"
 	"github.com/iancoleman/strcase"
-
-	"github.com/dohernandez/repo-generator/errors"
 )
 
 const repoTplFilename = "repo.tmpl"

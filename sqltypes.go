@@ -50,12 +50,3 @@ var sqlArrayable = map[string]sqlarrayable{
 	"string": "pq.StringArray",
 	"bool":   "pq.BoolArray",
 }
-
-//var sqltypeSwapper = map[string]string{
-//	"big.Int": "int64",
-//}
-
-//var sqltypeImporter = map[string]map[string]bool{
-//	"time.Time": {"time": true},
-//	"big.Int":   {"math/big": true},
-//}

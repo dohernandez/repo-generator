@@ -6,7 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/dohernandez/repo-generator/errors"
+	"github.com/dohernandez/errors"
 	"math/big"
 	"strings"
 )
@@ -83,7 +83,7 @@ func (repo *NetworkRepo) Scan(_ context.Context, s NetworkScanner) (*Network, er
 			return nil, ErrNetworkNotFound
 		}
 
-		return nil, errors.WrapWithError(err, ErrNetworkScan)
+		return nil, errors.WrapError(err, ErrNetworkScan)
 	}
 
 	if uRI.Valid {
@@ -127,6 +127,11 @@ func (repo *NetworkRepo) Create(ctx context.Context, m *Network) (*Network, erro
 		args []interface{}
 	)
 
+	if m.ID != "" {
+		cols = append(cols, "id")
+		args = append(args, m.ID)
+	}
+
 	cols = append(cols, "token")
 	args = append(args, m.Token)
 
@@ -156,6 +161,16 @@ func (repo *NetworkRepo) Create(ctx context.Context, m *Network) (*Network, erro
 		args = append(args, *m.IP)
 	}
 
+	if !m.CreatedAt.IsZero() {
+		cols = append(cols, "created_at")
+		args = append(args, m.CreatedAt)
+	}
+
+	if !m.UpdatedAt.IsZero() {
+		cols = append(cols, "updated_at")
+		args = append(args, m.UpdatedAt)
+	}
+
 	values := make([]string, len(cols))
 
 	for i := range cols {
@@ -171,5 +186,106 @@ func (repo *NetworkRepo) Create(ctx context.Context, m *Network) (*Network, erro
 	sql = fmt.Sprintf(sql, repo.table, qCols, qValues, rCols)
 
 	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, sql, args...))
+}
 
+func (repo *NetworkRepo) Insert(ctx context.Context, ms ...*Network) error {
+	// Build values query.
+	var (
+		valuesQueryBuilder strings.Builder
+		lms                = len(ms)
+	)
+
+	var cols []string
+	cols = append(cols, "id")
+	cols = append(cols, "token")
+	cols = append(cols, "uri")
+	cols = append(cols, "number")
+	cols = append(cols, "total")
+	cols = append(cols, "ip")
+	cols = append(cols, "created_at")
+	cols = append(cols, "updated_at")
+
+	lcols := len(cols)
+
+	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
+	args := make([]interface{}, 0, lms*lcols)
+
+	for i := range ms {
+		m := ms[i]
+
+		indexOffset := i * lcols
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+
+		if m.ID != "" {
+			args = append(args, m.ID)
+		} else {
+			args = append(args, nil)
+		}
+
+		args = append(args, m.Token)
+
+		var uRI sql.NullString
+
+		uRI.String = m.URI
+		uRI.Valid = true
+
+		args = append(args, uRI)
+
+		var number sql.NullInt64
+
+		if m.Number != nil {
+			number.Int64 = m.Number.Int64()
+			number.Valid = true
+		}
+
+		args = append(args, number)
+
+		args = append(args, m.Total.Int64())
+
+		if m.IP != nil {
+			args = append(args, *m.IP)
+		} else {
+			args = append(args, nil)
+		}
+
+		if !m.CreatedAt.IsZero() {
+			args = append(args, m.CreatedAt)
+		} else {
+			args = append(args, nil)
+		}
+
+		if !m.UpdatedAt.IsZero() {
+			args = append(args, m.UpdatedAt)
+		} else {
+			args = append(args, nil)
+		}
+
+	}
+
+	qCols := strings.Join(cols, ", ")
+
+	sql := "INSERT INTO %s (%s) VALUES %s"
+	sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
+
+	_, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return errors.Wrap(err, "exec context")
+	}
+
+	return nil
+}
+
+func (repo *NetworkRepo) valuesStatement(cols []string, offset int, separator bool) string {
+	var sep string
+
+	if separator {
+		sep = ","
+	}
+
+	values := make([]string, len(cols))
+	for i := range cols {
+		values[i] = fmt.Sprintf("$%d", offset+(i+1))
+	}
+
+	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }

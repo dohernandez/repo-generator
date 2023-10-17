@@ -6,7 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/dohernandez/repo-generator/errors"
+	"github.com/dohernandez/errors"
 	"github.com/dohernandez/repo-generator/testdata/deps"
 	"github.com/lib/pq"
 	"strings"
@@ -87,7 +87,7 @@ func (repo *AssetRepo) Scan(_ context.Context, s AssetScanner) (*Asset, error) {
 			return nil, ErrAssetNotFound
 		}
 
-		return nil, errors.WrapWithError(err, ErrAssetScan)
+		return nil, errors.WrapError(err, ErrAssetScan)
 	}
 
 	m.Address = deps.HexToAddress(address)
@@ -180,5 +180,90 @@ func (repo *AssetRepo) Create(ctx context.Context, m *Asset) (*Asset, error) {
 	}
 
 	return m, nil
+}
 
+func (repo *AssetRepo) Insert(ctx context.Context, ms ...*Asset) error {
+	// Build values query.
+	var (
+		valuesQueryBuilder strings.Builder
+		lms                = len(ms)
+	)
+
+	var cols []string
+	cols = append(cols, "chain_id")
+	cols = append(cols, "address")
+	cols = append(cols, "block_hash")
+	cols = append(cols, "types")
+	cols = append(cols, "name")
+	cols = append(cols, "symbol")
+	cols = append(cols, "metadata")
+	cols = append(cols, "immutable")
+	cols = append(cols, "created_at")
+	cols = append(cols, "updated_at")
+
+	lcols := len(cols)
+
+	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
+	args := make([]interface{}, 0, lms*lcols)
+
+	for i := range ms {
+		m := ms[i]
+
+		indexOffset := i * lcols
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+
+		args = append(args, m.ChainID)
+
+		args = append(args, m.Address.String())
+
+		args = append(args, m.BlockHash.String())
+
+		typs := make([]string, len(m.Type))
+
+		for i := range m.Type {
+			typs[i] = string(m.Type[i])
+		}
+
+		args = append(args, typs)
+
+		args = append(args, m.Name)
+
+		args = append(args, m.Symbol)
+
+		args = append(args, m.Metadata)
+
+		args = append(args, m.Immutable)
+
+		args = append(args, m.CreatedAt)
+
+		args = append(args, m.UpdatedAt)
+
+	}
+
+	qCols := strings.Join(cols, ", ")
+
+	sql := "INSERT INTO %s (%s) VALUES %s"
+	sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
+
+	_, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return errors.Wrap(err, "exec context")
+	}
+
+	return nil
+}
+
+func (repo *AssetRepo) valuesStatement(cols []string, offset int, separator bool) string {
+	var sep string
+
+	if separator {
+		sep = ","
+	}
+
+	values := make([]string, len(cols))
+	for i := range cols {
+		values[i] = fmt.Sprintf("$%d", offset+(i+1))
+	}
+
+	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }

@@ -4,9 +4,8 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 
+	"github.com/dohernandez/errors"
 	"github.com/ethereum/go-ethereum/common"
-
-	"github.com/dohernandez/repo-generator/errors"
 )
 
 type Hash = common.Hash

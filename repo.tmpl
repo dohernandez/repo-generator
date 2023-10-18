@@ -229,7 +229,7 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) valuesStatement(cols []s
     return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }
 
-func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Context, m *{{ $repo.Model.Name }}) error {
+func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Context, m *{{ $repo.Model.Name }}, skipZeroValues bool) error {
     var (
         sets   []string
         where  []string
@@ -244,9 +244,18 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
         offset++
     {{- end }}
 
-    {{- range $i, $field := $repo.ColStatesFields }}
-        {{ fieldToUpdateSql $field }}
-    {{- end }}
+    if skipZeroValues {
+        {{- range $i, $field := $repo.ColStatesFields }}
+            {{ fieldToUpdateSql $field }}
+        {{- end }}
+    } else {
+        {{- range $i, $field := $repo.ColStatesFields }}
+            where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, offset))
+            args = append(args, m.{{ $field.Name }})
+
+            offset++
+        {{- end }}
+    }
 
     qSets := strings.Join(sets, ", ")
     qWhere := strings.Join(where, " AND ")

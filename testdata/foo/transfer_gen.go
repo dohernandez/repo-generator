@@ -367,7 +367,7 @@ func (repo *TransferRepo) valuesStatement(cols []string, offset int, separator b
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }
 
-func (repo *TransferRepo) Update(ctx context.Context, m *Transfer) error {
+func (repo *TransferRepo) Update(ctx context.Context, m *Transfer, skipZeroValues bool) error {
 	var (
 		sets   []string
 		where  []string
@@ -383,76 +383,124 @@ func (repo *TransferRepo) Update(ctx context.Context, m *Transfer) error {
 
 	offset++
 
-	if m.BlockHash.String() != "" {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
-		args = append(args, m.BlockHash.String())
+	if skipZeroValues {
+		if m.BlockHash.String() != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
+			args = append(args, m.BlockHash.String())
+
+			offset++
+		}
+
+		if m.BlockTimestamp != 0 {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
+			args = append(args, m.BlockTimestamp)
+
+			offset++
+		}
+
+		if m.TransactionHash != nil {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTransactionHash, offset))
+			args = append(args, m.TransactionHash.String())
+
+			offset++
+		}
+
+		if m.MethodID != nil {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colMethodID, offset))
+			args = append(args, *m.MethodID)
+
+			offset++
+		}
+
+		if m.FromAddress.String() != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colFromAddress, offset))
+			args = append(args, m.FromAddress.String())
+
+			offset++
+		}
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colToAddress, offset))
+		args = append(args, m.ToAddress.String())
 
 		offset++
-	}
 
-	if m.BlockTimestamp != 0 {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
+		if m.AssetContract.String() != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colAssetContract, offset))
+			args = append(args, m.AssetContract.String())
+
+			offset++
+		}
+
+		if m.Value != nil {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colValue, offset))
+			args = append(args, m.Value.Int64())
+
+			offset++
+		}
+
+		if len(m.Metadata) > 0 {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colMetadata, offset))
+			args = append(args, m.Metadata)
+
+			offset++
+		}
+
+		if len(m.TraceAddress) > 0 {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTraceAddress, offset))
+			args = append(args, m.TraceAddress)
+
+			offset++
+		}
+
+		if !m.CreatedAt.IsZero() {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+			args = append(args, m.CreatedAt)
+
+			offset++
+		}
+
+	} else {
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
+		args = append(args, m.BlockHash)
+
+		offset++
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
 		args = append(args, m.BlockTimestamp)
 
 		offset++
-	}
-
-	if m.TransactionHash != nil {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTransactionHash, offset))
-		args = append(args, m.TransactionHash.String())
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colTransactionHash, offset))
+		args = append(args, m.TransactionHash)
 
 		offset++
-	}
-
-	if m.MethodID != nil {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colMethodID, offset))
-		args = append(args, *m.MethodID)
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colMethodID, offset))
+		args = append(args, m.MethodID)
 
 		offset++
-	}
-
-	if m.FromAddress.String() != "" {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colFromAddress, offset))
-		args = append(args, m.FromAddress.String())
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colFromAddress, offset))
+		args = append(args, m.FromAddress)
 
 		offset++
-	}
-
-	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colToAddress, offset))
-	args = append(args, m.ToAddress.String())
-
-	offset++
-
-	if m.AssetContract.String() != "" {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colAssetContract, offset))
-		args = append(args, m.AssetContract.String())
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colToAddress, offset))
+		args = append(args, m.ToAddress)
 
 		offset++
-	}
-
-	if m.Value != nil {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colValue, offset))
-		args = append(args, m.Value.Int64())
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colAssetContract, offset))
+		args = append(args, m.AssetContract)
 
 		offset++
-	}
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colValue, offset))
+		args = append(args, m.Value)
 
-	if len(m.Metadata) > 0 {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colMetadata, offset))
+		offset++
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colMetadata, offset))
 		args = append(args, m.Metadata)
 
 		offset++
-	}
-
-	if len(m.TraceAddress) > 0 {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTraceAddress, offset))
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colTraceAddress, offset))
 		args = append(args, m.TraceAddress)
 
 		offset++
-	}
-
-	if !m.CreatedAt.IsZero() {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		where = append(where, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
 		args = append(args, m.CreatedAt)
 
 		offset++

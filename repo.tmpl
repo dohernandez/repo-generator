@@ -190,8 +190,8 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Insert(ctx context.Conte
         m := ms[i]
 
         indexOffset := i * lcols
-        valuesQueryBuilder.WriteString({{ $repo.Receiver }}.valuesStatement(cols, indexOffset, i != lms-1))
 
+        valuesQueryBuilder.WriteString({{ $repo.Receiver }}.valuesStatement(cols, indexOffset, i != lms-1))
 
         {{- range $i, $field := $repo.ColKeysFields }}
             {{ fieldToInsertSql $field }}
@@ -238,6 +238,7 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
     )
 
     {{- range $i, $field := $repo.ColKeysFields }}
+
         where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, offset))
         args = append(args, m.{{ $field.Name }})
 
@@ -250,6 +251,7 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
         {{- end }}
     } else {
         {{- range $i, $field := $repo.ColStatesFields }}
+
             where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, offset))
             args = append(args, m.{{ $field.Name }})
 

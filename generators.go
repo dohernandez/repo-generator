@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"embed"
 	"fmt"
-	"go/format"
 	"go/parser"
 	"go/token"
 	"os"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/dohernandez/errors"
 	"github.com/iancoleman/strcase"
+	"mvdan.cc/gofumpt/format"
 )
 
 const version = "v0.1.0"
@@ -94,7 +94,7 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 	}
 
 	// Format the source code before writing.
-	output, err := format.Source(b.Bytes())
+	output, err := format.Source(b.Bytes(), format.Options{})
 	if err != nil {
 		return errors.Wrap(err, string(b.Bytes()))
 	}

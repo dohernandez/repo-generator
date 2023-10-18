@@ -22,23 +22,25 @@ type NetworkScanner interface {
 }
 
 type NetworkRepo struct {
-	db    *sql.DB
-	table string
+	db *sql.DB
 
-	stateCols []string
-
-	keyCols []string
+	table        string
+	colID        string
+	colToken     string
+	colURI       string
+	colNumber    string
+	colTotal     string
+	colIP        string
+	colCreatedAt string
+	colUpdatedAt string
 
 	cols []string
 }
 
 func NewNetworkRepo(db *sql.DB, table string) *NetworkRepo {
-	keyCols := []string{
+	cols := []string{
 		"id",
 		"token",
-	}
-
-	stateCols := []string{
 		"uri",
 		"number",
 		"total",
@@ -47,15 +49,19 @@ func NewNetworkRepo(db *sql.DB, table string) *NetworkRepo {
 		"updated_at",
 	}
 
-	cols := append(keyCols, stateCols...)
-
 	return &NetworkRepo{
-		db:    db,
-		table: table,
+		db:           db,
+		table:        table,
+		colID:        "id",
+		colToken:     "token",
+		colURI:       "uri",
+		colNumber:    "number",
+		colTotal:     "total",
+		colIP:        "ip",
+		colCreatedAt: "created_at",
+		colUpdatedAt: "updated_at",
 
-		keyCols:   keyCols,
-		stateCols: stateCols,
-		cols:      cols,
+		cols: cols,
 	}
 }
 
@@ -129,11 +135,11 @@ func (repo *NetworkRepo) Create(ctx context.Context, m *Network) (*Network, erro
 	)
 
 	if m.ID != "" {
-		cols = append(cols, "id")
+		cols = append(cols, repo.colID)
 		args = append(args, m.ID)
 	}
 
-	cols = append(cols, "token")
+	cols = append(cols, repo.colToken)
 	args = append(args, m.Token)
 
 	var uRI sql.NullString
@@ -141,7 +147,7 @@ func (repo *NetworkRepo) Create(ctx context.Context, m *Network) (*Network, erro
 	uRI.String = m.URI
 	uRI.Valid = true
 
-	cols = append(cols, "uri")
+	cols = append(cols, repo.colURI)
 	args = append(args, uRI)
 
 	if m.Number != nil {
@@ -150,25 +156,25 @@ func (repo *NetworkRepo) Create(ctx context.Context, m *Network) (*Network, erro
 		number.Int64 = m.Number.Int64()
 		number.Valid = true
 
-		cols = append(cols, "number")
+		cols = append(cols, repo.colNumber)
 		args = append(args, number)
 	}
 
-	cols = append(cols, "total")
+	cols = append(cols, repo.colTotal)
 	args = append(args, m.Total.Int64())
 
 	if m.IP != nil {
-		cols = append(cols, "ip")
+		cols = append(cols, repo.colIP)
 		args = append(args, *m.IP)
 	}
 
 	if !m.CreatedAt.IsZero() {
-		cols = append(cols, "created_at")
+		cols = append(cols, repo.colCreatedAt)
 		args = append(args, m.CreatedAt)
 	}
 
 	if !m.UpdatedAt.IsZero() {
-		cols = append(cols, "updated_at")
+		cols = append(cols, repo.colUpdatedAt)
 		args = append(args, m.UpdatedAt)
 	}
 
@@ -197,14 +203,14 @@ func (repo *NetworkRepo) Insert(ctx context.Context, ms ...*Network) error {
 	)
 
 	var cols []string
-	cols = append(cols, "id")
-	cols = append(cols, "token")
-	cols = append(cols, "uri")
-	cols = append(cols, "number")
-	cols = append(cols, "total")
-	cols = append(cols, "ip")
-	cols = append(cols, "created_at")
-	cols = append(cols, "updated_at")
+	cols = append(cols, repo.colID)
+	cols = append(cols, repo.colToken)
+	cols = append(cols, repo.colURI)
+	cols = append(cols, repo.colNumber)
+	cols = append(cols, repo.colTotal)
+	cols = append(cols, repo.colIP)
+	cols = append(cols, repo.colCreatedAt)
+	cols = append(cols, repo.colUpdatedAt)
 
 	lcols := len(cols)
 
@@ -298,50 +304,50 @@ func (repo *NetworkRepo) Update(ctx context.Context, m *Network) error {
 		args   []interface{}
 		offset = 1
 	)
-	where = append(where, fmt.Sprintf("id = $%d", offset))
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, offset))
 	args = append(args, m.ID)
 
 	offset++
-	where = append(where, fmt.Sprintf("token = $%d", offset))
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colToken, offset))
 	args = append(args, m.Token)
 
 	offset++
 
-	sets = append(sets, fmt.Sprintf("uri = $%d", offset))
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colURI, offset))
 	args = append(args, m.URI)
 
 	offset++
 
 	if m.Number != nil {
-		sets = append(sets, fmt.Sprintf("number = $%d", offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colNumber, offset))
 		args = append(args, m.Number.Int64())
 
 		offset++
 	}
 
 	if m.Total.Int64() != 0 {
-		sets = append(sets, fmt.Sprintf("total = $%d", offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTotal, offset))
 		args = append(args, m.Total.Int64())
 
 		offset++
 	}
 
 	if m.IP != nil {
-		sets = append(sets, fmt.Sprintf("ip = $%d", offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colIP, offset))
 		args = append(args, *m.IP)
 
 		offset++
 	}
 
 	if !m.CreatedAt.IsZero() {
-		sets = append(sets, fmt.Sprintf("created_at = $%d", offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
 		args = append(args, m.CreatedAt)
 
 		offset++
 	}
 
 	if !m.UpdatedAt.IsZero() {
-		sets = append(sets, fmt.Sprintf("updated_at = $%d", offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
 		args = append(args, m.UpdatedAt)
 
 		offset++

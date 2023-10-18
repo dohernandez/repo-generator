@@ -16,6 +16,7 @@ import (
 var (
 	ErrTransferScan     = errors.New("scan")
 	ErrTransferNotFound = errors.New("not found")
+	ErrTransferUpdate   = errors.New("update")
 )
 
 type TransferScanner interface {
@@ -23,23 +24,30 @@ type TransferScanner interface {
 }
 
 type TransferRepo struct {
-	db    *sql.DB
-	table string
+	db *sql.DB
 
-	stateCols []string
-
-	keyCols []string
+	table              string
+	colID              string
+	colChainID         string
+	colBlockHash       string
+	colBlockTimestamp  string
+	colTransactionHash string
+	colMethodID        string
+	colFromAddress     string
+	colToAddress       string
+	colAssetContract   string
+	colValue           string
+	colMetadata        string
+	colTraceAddress    string
+	colCreatedAt       string
 
 	cols []string
 }
 
 func NewTransferRepo(db *sql.DB, table string) *TransferRepo {
-	keyCols := []string{
+	cols := []string{
 		"id",
 		"chain_id",
-	}
-
-	stateCols := []string{
 		"block_hash",
 		"block_timestamp",
 		"transaction_hash",
@@ -53,15 +61,24 @@ func NewTransferRepo(db *sql.DB, table string) *TransferRepo {
 		"created_at",
 	}
 
-	cols := append(keyCols, stateCols...)
-
 	return &TransferRepo{
-		db:    db,
-		table: table,
+		db:                 db,
+		table:              table,
+		colID:              "id",
+		colChainID:         "chain_id",
+		colBlockHash:       "block_hash",
+		colBlockTimestamp:  "block_timestamp",
+		colTransactionHash: "transaction_hash",
+		colMethodID:        "method_id",
+		colFromAddress:     "from_address",
+		colToAddress:       "to_address",
+		colAssetContract:   "asset_contract",
+		colValue:           "value",
+		colMetadata:        "metadata",
+		colTraceAddress:    "trace_address",
+		colCreatedAt:       "created_at",
 
-		keyCols:   keyCols,
-		stateCols: stateCols,
-		cols:      cols,
+		cols: cols,
 	}
 }
 
@@ -155,16 +172,16 @@ func (repo *TransferRepo) Create(ctx context.Context, m *Transfer) (*Transfer, e
 		args []interface{}
 	)
 
-	cols = append(cols, "id")
+	cols = append(cols, repo.colID)
 	args = append(args, m.ID.String())
 
-	cols = append(cols, "chain_id")
+	cols = append(cols, repo.colChainID)
 	args = append(args, m.ChainID)
 
-	cols = append(cols, "block_hash")
+	cols = append(cols, repo.colBlockHash)
 	args = append(args, m.BlockHash.String())
 
-	cols = append(cols, "block_timestamp")
+	cols = append(cols, repo.colBlockTimestamp)
 	args = append(args, m.BlockTimestamp)
 
 	if m.TransactionHash != nil {
@@ -173,7 +190,7 @@ func (repo *TransferRepo) Create(ctx context.Context, m *Transfer) (*Transfer, e
 		transactionHash.String = m.TransactionHash.String()
 		transactionHash.Valid = true
 
-		cols = append(cols, "transaction_hash")
+		cols = append(cols, repo.colTransactionHash)
 		args = append(args, transactionHash)
 	}
 
@@ -183,11 +200,11 @@ func (repo *TransferRepo) Create(ctx context.Context, m *Transfer) (*Transfer, e
 		methodID.String = *m.MethodID
 		methodID.Valid = true
 
-		cols = append(cols, "method_id")
+		cols = append(cols, repo.colMethodID)
 		args = append(args, methodID)
 	}
 
-	cols = append(cols, "from_address")
+	cols = append(cols, repo.colFromAddress)
 	args = append(args, m.FromAddress.String())
 
 	var toAddress sql.NullString
@@ -195,25 +212,25 @@ func (repo *TransferRepo) Create(ctx context.Context, m *Transfer) (*Transfer, e
 	toAddress.String = m.ToAddress.String()
 	toAddress.Valid = true
 
-	cols = append(cols, "to_address")
+	cols = append(cols, repo.colToAddress)
 	args = append(args, toAddress)
 
-	cols = append(cols, "asset_contract")
+	cols = append(cols, repo.colAssetContract)
 	args = append(args, m.AssetContract.String())
 
 	if m.Value != nil {
-		cols = append(cols, "value")
+		cols = append(cols, repo.colValue)
 		args = append(args, m.Value.Int64())
 	}
 
-	cols = append(cols, "metadata")
+	cols = append(cols, repo.colMetadata)
 	args = append(args, m.Metadata)
 
-	cols = append(cols, "trace_address")
+	cols = append(cols, repo.colTraceAddress)
 	args = append(args, m.TraceAddress)
 
 	if !m.CreatedAt.IsZero() {
-		cols = append(cols, "created_at")
+		cols = append(cols, repo.colCreatedAt)
 		args = append(args, m.CreatedAt)
 	}
 
@@ -242,19 +259,19 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 	)
 
 	var cols []string
-	cols = append(cols, "id")
-	cols = append(cols, "chain_id")
-	cols = append(cols, "block_hash")
-	cols = append(cols, "block_timestamp")
-	cols = append(cols, "transaction_hash")
-	cols = append(cols, "method_id")
-	cols = append(cols, "from_address")
-	cols = append(cols, "to_address")
-	cols = append(cols, "asset_contract")
-	cols = append(cols, "value")
-	cols = append(cols, "metadata")
-	cols = append(cols, "trace_address")
-	cols = append(cols, "created_at")
+	cols = append(cols, repo.colID)
+	cols = append(cols, repo.colChainID)
+	cols = append(cols, repo.colBlockHash)
+	cols = append(cols, repo.colBlockTimestamp)
+	cols = append(cols, repo.colTransactionHash)
+	cols = append(cols, repo.colMethodID)
+	cols = append(cols, repo.colFromAddress)
+	cols = append(cols, repo.colToAddress)
+	cols = append(cols, repo.colAssetContract)
+	cols = append(cols, repo.colValue)
+	cols = append(cols, repo.colMetadata)
+	cols = append(cols, repo.colTraceAddress)
+	cols = append(cols, repo.colCreatedAt)
 
 	lcols := len(cols)
 
@@ -348,4 +365,118 @@ func (repo *TransferRepo) valuesStatement(cols []string, offset int, separator b
 	}
 
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
+}
+
+func (repo *TransferRepo) Update(ctx context.Context, m *Transfer) error {
+	var (
+		sets   []string
+		where  []string
+		args   []interface{}
+		offset = 1
+	)
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, offset))
+	args = append(args, m.ID)
+
+	offset++
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
+	args = append(args, m.ChainID)
+
+	offset++
+
+	if m.BlockHash.String() != "" {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
+		args = append(args, m.BlockHash.String())
+
+		offset++
+	}
+
+	if m.BlockTimestamp != 0 {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
+		args = append(args, m.BlockTimestamp)
+
+		offset++
+	}
+
+	if m.TransactionHash != nil {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTransactionHash, offset))
+		args = append(args, m.TransactionHash.String())
+
+		offset++
+	}
+
+	if m.MethodID != nil {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colMethodID, offset))
+		args = append(args, *m.MethodID)
+
+		offset++
+	}
+
+	if m.FromAddress.String() != "" {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colFromAddress, offset))
+		args = append(args, m.FromAddress.String())
+
+		offset++
+	}
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colToAddress, offset))
+	args = append(args, m.ToAddress.String())
+
+	offset++
+
+	if m.AssetContract.String() != "" {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colAssetContract, offset))
+		args = append(args, m.AssetContract.String())
+
+		offset++
+	}
+
+	if m.Value != nil {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colValue, offset))
+		args = append(args, m.Value.Int64())
+
+		offset++
+	}
+
+	if len(m.Metadata) > 0 {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colMetadata, offset))
+		args = append(args, m.Metadata)
+
+		offset++
+	}
+
+	if len(m.TraceAddress) > 0 {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTraceAddress, offset))
+		args = append(args, m.TraceAddress)
+
+		offset++
+	}
+
+	if !m.CreatedAt.IsZero() {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		args = append(args, m.CreatedAt)
+
+		offset++
+	}
+
+	qSets := strings.Join(sets, ", ")
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "UPDATE %s SET %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qSets, qWhere)
+
+	res, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrTransferUpdate
+	}
+
+	return nil
 }

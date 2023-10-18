@@ -15,6 +15,7 @@ import (
 var (
 	ErrBlockScan     = errors.New("scan")
 	ErrBlockNotFound = errors.New("not found")
+	ErrBlockUpdate   = errors.New("update")
 )
 
 type BlockScanner interface {
@@ -22,22 +23,22 @@ type BlockScanner interface {
 }
 
 type BlockRepo struct {
-	db    *sql.DB
-	table string
+	db *sql.DB
 
-	stateCols []string
-
-	keyCols []string
+	table             string
+	colID             string
+	colChainID        string
+	colHash           string
+	colNumber         string
+	colParentHash     string
+	colBlockTimestamp string
 
 	cols []string
 }
 
 func NewBlockRepo(db *sql.DB, table string) *BlockRepo {
-	keyCols := []string{
+	cols := []string{
 		"id",
-	}
-
-	stateCols := []string{
 		"chain_id",
 		"hash",
 		"number",
@@ -45,15 +46,17 @@ func NewBlockRepo(db *sql.DB, table string) *BlockRepo {
 		"block_timestamp",
 	}
 
-	cols := append(keyCols, stateCols...)
-
 	return &BlockRepo{
-		db:    db,
-		table: table,
+		db:                db,
+		table:             table,
+		colID:             "id",
+		colChainID:        "chain_id",
+		colHash:           "hash",
+		colNumber:         "number",
+		colParentHash:     "parent_hash",
+		colBlockTimestamp: "block_timestamp",
 
-		keyCols:   keyCols,
-		stateCols: stateCols,
-		cols:      cols,
+		cols: cols,
 	}
 }
 
@@ -125,10 +128,12 @@ func (repo *BlockRepo) Create(ctx context.Context, m *Block) (*Block, error) {
 		args []interface{}
 	)
 
-	cols = append(cols, "id")
-	args = append(args, m.ID)
+	if !deps.IsUUIDZero(m.ID) {
+		cols = append(cols, repo.colID)
+		args = append(args, m.ID)
+	}
 
-	cols = append(cols, "chain_id")
+	cols = append(cols, repo.colChainID)
 	args = append(args, m.ChainID)
 
 	var hash sql.NullString
@@ -136,11 +141,11 @@ func (repo *BlockRepo) Create(ctx context.Context, m *Block) (*Block, error) {
 	hash.String = m.Hash.String()
 	hash.Valid = true
 
-	cols = append(cols, "hash")
+	cols = append(cols, repo.colHash)
 	args = append(args, hash)
 
 	if m.Number != nil {
-		cols = append(cols, "number")
+		cols = append(cols, repo.colNumber)
 		args = append(args, m.Number.Int64())
 	}
 
@@ -149,7 +154,7 @@ func (repo *BlockRepo) Create(ctx context.Context, m *Block) (*Block, error) {
 	parentHash.String = m.ParentHash.String()
 	parentHash.Valid = true
 
-	cols = append(cols, "parent_hash")
+	cols = append(cols, repo.colParentHash)
 	args = append(args, parentHash)
 
 	if !m.BlockTimestamp.IsZero() {
@@ -158,7 +163,7 @@ func (repo *BlockRepo) Create(ctx context.Context, m *Block) (*Block, error) {
 		blockTimestamp.Time = m.BlockTimestamp
 		blockTimestamp.Valid = true
 
-		cols = append(cols, "block_timestamp")
+		cols = append(cols, repo.colBlockTimestamp)
 		args = append(args, blockTimestamp)
 	}
 
@@ -187,12 +192,12 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 	)
 
 	var cols []string
-	cols = append(cols, "id")
-	cols = append(cols, "chain_id")
-	cols = append(cols, "hash")
-	cols = append(cols, "number")
-	cols = append(cols, "parent_hash")
-	cols = append(cols, "block_timestamp")
+	cols = append(cols, repo.colID)
+	cols = append(cols, repo.colChainID)
+	cols = append(cols, repo.colHash)
+	cols = append(cols, repo.colNumber)
+	cols = append(cols, repo.colParentHash)
+	cols = append(cols, repo.colBlockTimestamp)
 
 	lcols := len(cols)
 
@@ -270,4 +275,66 @@ func (repo *BlockRepo) valuesStatement(cols []string, offset int, separator bool
 	}
 
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
+}
+
+func (repo *BlockRepo) Update(ctx context.Context, m *Block) error {
+	var (
+		sets   []string
+		where  []string
+		args   []interface{}
+		offset = 1
+	)
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, offset))
+	args = append(args, m.ID)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
+	args = append(args, m.ChainID)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colHash, offset))
+	args = append(args, m.Hash.String())
+
+	offset++
+
+	if m.Number != nil {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colNumber, offset))
+		args = append(args, m.Number.Int64())
+
+		offset++
+	}
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colParentHash, offset))
+	args = append(args, m.ParentHash.String())
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
+	args = append(args, m.BlockTimestamp)
+
+	offset++
+
+	qSets := strings.Join(sets, ", ")
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "UPDATE %s SET %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qSets, qWhere)
+
+	res, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrBlockUpdate
+	}
+
+	return nil
 }

@@ -15,6 +15,7 @@ import (
 var (
 	ErrSyncScan     = errors.New("scan")
 	ErrSyncNotFound = errors.New("not found")
+	ErrSyncUpdate   = errors.New("update")
 )
 
 type SyncScanner interface {
@@ -22,22 +23,30 @@ type SyncScanner interface {
 }
 
 type SyncRepo struct {
-	db    *sql.DB
-	table string
+	db *sql.DB
 
-	stateCols []string
-
-	keyCols []string
+	table               string
+	colID               string
+	colState            string
+	colChainID          string
+	colBlockNumber      string
+	colBlockHash        string
+	colParentHash       string
+	colBlockTimestamp   string
+	colBlockHeaderPath  string
+	colTransactionsPath string
+	colReceiptsPath     string
+	colLogsPath         string
+	colTracesPath       string
+	colCreatedAt        string
+	colUpdatedAt        string
 
 	cols []string
 }
 
 func NewSyncRepo(db *sql.DB, table string) *SyncRepo {
-	keyCols := []string{
+	cols := []string{
 		"id",
-	}
-
-	stateCols := []string{
 		"state",
 		"chain_id",
 		"block_number",
@@ -53,15 +62,25 @@ func NewSyncRepo(db *sql.DB, table string) *SyncRepo {
 		"updated_at",
 	}
 
-	cols := append(keyCols, stateCols...)
-
 	return &SyncRepo{
-		db:    db,
-		table: table,
+		db:                  db,
+		table:               table,
+		colID:               "id",
+		colState:            "state",
+		colChainID:          "chain_id",
+		colBlockNumber:      "block_number",
+		colBlockHash:        "block_hash",
+		colParentHash:       "parent_hash",
+		colBlockTimestamp:   "block_timestamp",
+		colBlockHeaderPath:  "block_header_path",
+		colTransactionsPath: "transactions_path",
+		colReceiptsPath:     "receipts_path",
+		colLogsPath:         "logs_path",
+		colTracesPath:       "traces_path",
+		colCreatedAt:        "created_at",
+		colUpdatedAt:        "updated_at",
 
-		keyCols:   keyCols,
-		stateCols: stateCols,
-		cols:      cols,
+		cols: cols,
 	}
 }
 
@@ -167,18 +186,18 @@ func (repo *SyncRepo) Create(ctx context.Context, m *Sync) (*Sync, error) {
 	)
 
 	if !deps.IsUUIDZero(m.ID) {
-		cols = append(cols, "id")
+		cols = append(cols, repo.colID)
 		args = append(args, m.ID)
 	}
 
-	cols = append(cols, "state")
+	cols = append(cols, repo.colState)
 	args = append(args, m.State)
 
-	cols = append(cols, "chain_id")
+	cols = append(cols, repo.colChainID)
 	args = append(args, m.ChainID)
 
 	if m.BlockNumber != nil {
-		cols = append(cols, "block_number")
+		cols = append(cols, repo.colBlockNumber)
 		args = append(args, m.BlockNumber.String())
 	}
 
@@ -187,7 +206,7 @@ func (repo *SyncRepo) Create(ctx context.Context, m *Sync) (*Sync, error) {
 	blockHash.String = m.BlockHash.String()
 	blockHash.Valid = true
 
-	cols = append(cols, "block_hash")
+	cols = append(cols, repo.colBlockHash)
 	args = append(args, blockHash)
 
 	var parentHash sql.NullString
@@ -195,7 +214,7 @@ func (repo *SyncRepo) Create(ctx context.Context, m *Sync) (*Sync, error) {
 	parentHash.String = m.ParentHash.String()
 	parentHash.Valid = true
 
-	cols = append(cols, "parent_hash")
+	cols = append(cols, repo.colParentHash)
 	args = append(args, parentHash)
 
 	var blockTimestamp sql.NullTime
@@ -203,7 +222,7 @@ func (repo *SyncRepo) Create(ctx context.Context, m *Sync) (*Sync, error) {
 	blockTimestamp.Time = m.BlockTimestamp
 	blockTimestamp.Valid = true
 
-	cols = append(cols, "block_timestamp")
+	cols = append(cols, repo.colBlockTimestamp)
 	args = append(args, blockTimestamp)
 
 	var blockHeaderPath sql.NullString
@@ -211,7 +230,7 @@ func (repo *SyncRepo) Create(ctx context.Context, m *Sync) (*Sync, error) {
 	blockHeaderPath.String = m.BlockHeaderPath
 	blockHeaderPath.Valid = true
 
-	cols = append(cols, "block_header_path")
+	cols = append(cols, repo.colBlockHeaderPath)
 	args = append(args, blockHeaderPath)
 
 	var transactionsPath sql.NullString
@@ -219,7 +238,7 @@ func (repo *SyncRepo) Create(ctx context.Context, m *Sync) (*Sync, error) {
 	transactionsPath.String = m.TransactionsPath
 	transactionsPath.Valid = true
 
-	cols = append(cols, "transactions_path")
+	cols = append(cols, repo.colTransactionsPath)
 	args = append(args, transactionsPath)
 
 	var receiptsPath sql.NullString
@@ -227,7 +246,7 @@ func (repo *SyncRepo) Create(ctx context.Context, m *Sync) (*Sync, error) {
 	receiptsPath.String = m.ReceiptsPath
 	receiptsPath.Valid = true
 
-	cols = append(cols, "receipts_path")
+	cols = append(cols, repo.colReceiptsPath)
 	args = append(args, receiptsPath)
 
 	var logsPath sql.NullString
@@ -235,7 +254,7 @@ func (repo *SyncRepo) Create(ctx context.Context, m *Sync) (*Sync, error) {
 	logsPath.String = m.LogsPath
 	logsPath.Valid = true
 
-	cols = append(cols, "logs_path")
+	cols = append(cols, repo.colLogsPath)
 	args = append(args, logsPath)
 
 	var tracesPath sql.NullString
@@ -243,13 +262,13 @@ func (repo *SyncRepo) Create(ctx context.Context, m *Sync) (*Sync, error) {
 	tracesPath.String = m.TracesPath
 	tracesPath.Valid = true
 
-	cols = append(cols, "traces_path")
+	cols = append(cols, repo.colTracesPath)
 	args = append(args, tracesPath)
 
-	cols = append(cols, "created_at")
+	cols = append(cols, repo.colCreatedAt)
 	args = append(args, m.CreatedAt)
 
-	cols = append(cols, "updated_at")
+	cols = append(cols, repo.colUpdatedAt)
 	args = append(args, m.UpdatedAt)
 
 	values := make([]string, len(cols))
@@ -277,20 +296,20 @@ func (repo *SyncRepo) Insert(ctx context.Context, ms ...*Sync) error {
 	)
 
 	var cols []string
-	cols = append(cols, "id")
-	cols = append(cols, "state")
-	cols = append(cols, "chain_id")
-	cols = append(cols, "block_number")
-	cols = append(cols, "block_hash")
-	cols = append(cols, "parent_hash")
-	cols = append(cols, "block_timestamp")
-	cols = append(cols, "block_header_path")
-	cols = append(cols, "transactions_path")
-	cols = append(cols, "receipts_path")
-	cols = append(cols, "logs_path")
-	cols = append(cols, "traces_path")
-	cols = append(cols, "created_at")
-	cols = append(cols, "updated_at")
+	cols = append(cols, repo.colID)
+	cols = append(cols, repo.colState)
+	cols = append(cols, repo.colChainID)
+	cols = append(cols, repo.colBlockNumber)
+	cols = append(cols, repo.colBlockHash)
+	cols = append(cols, repo.colParentHash)
+	cols = append(cols, repo.colBlockTimestamp)
+	cols = append(cols, repo.colBlockHeaderPath)
+	cols = append(cols, repo.colTransactionsPath)
+	cols = append(cols, repo.colReceiptsPath)
+	cols = append(cols, repo.colLogsPath)
+	cols = append(cols, repo.colTracesPath)
+	cols = append(cols, repo.colCreatedAt)
+	cols = append(cols, repo.colUpdatedAt)
 
 	lcols := len(cols)
 
@@ -407,4 +426,110 @@ func (repo *SyncRepo) valuesStatement(cols []string, offset int, separator bool)
 	}
 
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
+}
+
+func (repo *SyncRepo) Update(ctx context.Context, m *Sync) error {
+	var (
+		sets   []string
+		where  []string
+		args   []interface{}
+		offset = 1
+	)
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, offset))
+	args = append(args, m.ID)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colState, offset))
+	args = append(args, m.State)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
+	args = append(args, m.ChainID)
+
+	offset++
+
+	if m.BlockNumber != nil {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockNumber, offset))
+		args = append(args, m.BlockNumber.String())
+
+		offset++
+	}
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
+	args = append(args, m.BlockHash.String())
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colParentHash, offset))
+	args = append(args, m.ParentHash.String())
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
+	args = append(args, m.BlockTimestamp)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHeaderPath, offset))
+	args = append(args, m.BlockHeaderPath)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTransactionsPath, offset))
+	args = append(args, m.TransactionsPath)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colReceiptsPath, offset))
+	args = append(args, m.ReceiptsPath)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLogsPath, offset))
+	args = append(args, m.LogsPath)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTracesPath, offset))
+	args = append(args, m.TracesPath)
+
+	offset++
+
+	if !m.CreatedAt.IsZero() {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		args = append(args, m.CreatedAt)
+
+		offset++
+	}
+
+	if !m.UpdatedAt.IsZero() {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
+		args = append(args, m.UpdatedAt)
+
+		offset++
+	}
+
+	qSets := strings.Join(sets, ", ")
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "UPDATE %s SET %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qSets, qWhere)
+
+	res, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrSyncUpdate
+	}
+
+	return nil
 }

@@ -14,6 +14,7 @@ import (
 var (
 	ErrCursorScan     = errors.New("scan")
 	ErrCursorNotFound = errors.New("not found")
+	ErrCursorUpdate   = errors.New("update")
 )
 
 type CursorScanner interface {
@@ -21,22 +22,23 @@ type CursorScanner interface {
 }
 
 type CursorRepo struct {
-	db    *sql.DB
-	table string
+	db *sql.DB
 
-	stateCols []string
-
-	keyCols []string
+	table              string
+	colID              string
+	colName            string
+	colPosition        string
+	colLeader          string
+	colLeaderElectedAt string
+	colCreatedAt       string
+	colUpdatedAt       string
 
 	cols []string
 }
 
 func NewCursorRepo(db *sql.DB, table string) *CursorRepo {
-	keyCols := []string{
+	cols := []string{
 		"id",
-	}
-
-	stateCols := []string{
 		"name",
 		"position",
 		"leader",
@@ -45,15 +47,18 @@ func NewCursorRepo(db *sql.DB, table string) *CursorRepo {
 		"updated_at",
 	}
 
-	cols := append(keyCols, stateCols...)
-
 	return &CursorRepo{
-		db:    db,
-		table: table,
+		db:                 db,
+		table:              table,
+		colID:              "id",
+		colName:            "name",
+		colPosition:        "position",
+		colLeader:          "leader",
+		colLeaderElectedAt: "leader_elected_at",
+		colCreatedAt:       "created_at",
+		colUpdatedAt:       "updated_at",
 
-		keyCols:   keyCols,
-		stateCols: stateCols,
-		cols:      cols,
+		cols: cols,
 	}
 }
 
@@ -123,10 +128,10 @@ func (repo *CursorRepo) Create(ctx context.Context, m *Cursor) (*Cursor, error) 
 		args []interface{}
 	)
 
-	cols = append(cols, "id")
+	cols = append(cols, repo.colID)
 	args = append(args, m.ID)
 
-	cols = append(cols, "name")
+	cols = append(cols, repo.colName)
 	args = append(args, m.Name)
 
 	var position sql.NullString
@@ -134,7 +139,7 @@ func (repo *CursorRepo) Create(ctx context.Context, m *Cursor) (*Cursor, error) 
 	position.String = m.Position.String()
 	position.Valid = true
 
-	cols = append(cols, "position")
+	cols = append(cols, repo.colPosition)
 	args = append(args, position)
 
 	var leader sql.NullString
@@ -142,7 +147,7 @@ func (repo *CursorRepo) Create(ctx context.Context, m *Cursor) (*Cursor, error) 
 	leader.String = m.Leader.String()
 	leader.Valid = true
 
-	cols = append(cols, "leader")
+	cols = append(cols, repo.colLeader)
 	args = append(args, leader)
 
 	var leaderElectedAt sql.NullTime
@@ -150,13 +155,13 @@ func (repo *CursorRepo) Create(ctx context.Context, m *Cursor) (*Cursor, error) 
 	leaderElectedAt.Time = m.LeaderElectedAt
 	leaderElectedAt.Valid = true
 
-	cols = append(cols, "leader_elected_at")
+	cols = append(cols, repo.colLeaderElectedAt)
 	args = append(args, leaderElectedAt)
 
-	cols = append(cols, "created_at")
+	cols = append(cols, repo.colCreatedAt)
 	args = append(args, m.CreatedAt)
 
-	cols = append(cols, "updated_at")
+	cols = append(cols, repo.colUpdatedAt)
 	args = append(args, m.UpdatedAt)
 
 	values := make([]string, len(cols))
@@ -187,13 +192,13 @@ func (repo *CursorRepo) Insert(ctx context.Context, ms ...*Cursor) error {
 	)
 
 	var cols []string
-	cols = append(cols, "id")
-	cols = append(cols, "name")
-	cols = append(cols, "position")
-	cols = append(cols, "leader")
-	cols = append(cols, "leader_elected_at")
-	cols = append(cols, "created_at")
-	cols = append(cols, "updated_at")
+	cols = append(cols, repo.colID)
+	cols = append(cols, repo.colName)
+	cols = append(cols, repo.colPosition)
+	cols = append(cols, repo.colLeader)
+	cols = append(cols, repo.colLeaderElectedAt)
+	cols = append(cols, repo.colCreatedAt)
+	cols = append(cols, repo.colUpdatedAt)
 
 	lcols := len(cols)
 
@@ -263,4 +268,75 @@ func (repo *CursorRepo) valuesStatement(cols []string, offset int, separator boo
 	}
 
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
+}
+
+func (repo *CursorRepo) Update(ctx context.Context, m *Cursor) error {
+	var (
+		sets   []string
+		where  []string
+		args   []interface{}
+		offset = 1
+	)
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, offset))
+	args = append(args, m.ID)
+
+	offset++
+
+	if m.Name != "" {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colName, offset))
+		args = append(args, m.Name)
+
+		offset++
+	}
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colPosition, offset))
+	args = append(args, m.Position.String())
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeader, offset))
+	args = append(args, m.Leader.String())
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeaderElectedAt, offset))
+	args = append(args, m.LeaderElectedAt)
+
+	offset++
+
+	if !m.CreatedAt.IsZero() {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		args = append(args, m.CreatedAt)
+
+		offset++
+	}
+
+	if !m.UpdatedAt.IsZero() {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
+		args = append(args, m.UpdatedAt)
+
+		offset++
+	}
+
+	qSets := strings.Join(sets, ", ")
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "UPDATE %s SET %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qSets, qWhere)
+
+	res, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrCursorUpdate
+	}
+
+	return nil
 }

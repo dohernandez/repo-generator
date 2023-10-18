@@ -193,6 +193,7 @@ func (repo *CursorRepo) Insert(ctx context.Context, ms ...*Cursor) error {
 	)
 
 	var cols []string
+
 	cols = append(cols, repo.colID)
 	cols = append(cols, repo.colName)
 	cols = append(cols, repo.colPosition)
@@ -241,7 +242,6 @@ func (repo *CursorRepo) Insert(ctx context.Context, ms ...*Cursor) error {
 		args = append(args, m.CreatedAt)
 
 		args = append(args, m.UpdatedAt)
-
 	}
 
 	qCols := strings.Join(cols, ", ")
@@ -286,7 +286,6 @@ func (repo *CursorRepo) Update(ctx context.Context, m *Cursor, skipZeroValues bo
 	offset++
 
 	if skipZeroValues {
-
 		if m.Name != "" {
 			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colName, offset))
 			args = append(args, m.Name)
@@ -322,9 +321,7 @@ func (repo *CursorRepo) Update(ctx context.Context, m *Cursor, skipZeroValues bo
 
 			offset++
 		}
-
 	} else {
-
 		where = append(where, fmt.Sprintf("%s = $%d", repo.colName, offset))
 		args = append(args, m.Name)
 

@@ -202,6 +202,7 @@ func (repo *AssetRepo) Insert(ctx context.Context, ms ...*Asset) error {
 	)
 
 	var cols []string
+
 	cols = append(cols, repo.colChainID)
 	cols = append(cols, repo.colAddress)
 	cols = append(cols, repo.colBlockHash)
@@ -250,7 +251,6 @@ func (repo *AssetRepo) Insert(ctx context.Context, ms ...*Asset) error {
 		args = append(args, m.CreatedAt)
 
 		args = append(args, m.UpdatedAt)
-
 	}
 
 	qCols := strings.Join(cols, ", ")
@@ -300,7 +300,6 @@ func (repo *AssetRepo) Update(ctx context.Context, m *Asset, skipZeroValues bool
 	offset++
 
 	if skipZeroValues {
-
 		if m.BlockHash.String() != "" {
 			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
 			args = append(args, m.BlockHash.String())
@@ -360,9 +359,7 @@ func (repo *AssetRepo) Update(ctx context.Context, m *Asset, skipZeroValues bool
 
 			offset++
 		}
-
 	} else {
-
 		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
 		args = append(args, m.BlockHash)
 

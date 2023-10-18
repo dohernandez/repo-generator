@@ -144,15 +144,14 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Create(ctx context.Conte
     qCols := strings.Join(cols, ", ")
     qValues := strings.Join(values, ", ")
 
-    {{if $repo.Model.Auto}}
+    {{ if $repo.Model.Auto }}
     rCols := strings.Join({{ $repo.Receiver }}.cols, ", ")
 
     sql := "INSERT INTO %s (%s) VALUES (%s) RETURNING %s"
     sql = fmt.Sprintf(sql, {{ $repo.Receiver }}.table, qCols, qValues, rCols)
 
     return  {{ $repo.Receiver }}.Scan(ctx, {{ $repo.Receiver }}.db.QueryRowContext(ctx, sql, args...))
-}
-    {{else}}
+    {{ else }}
     sql := "INSERT INTO %s (%s) VALUES (%s)"
     sql = fmt.Sprintf(sql, {{ $repo.Receiver }}.table, qCols, qValues)
 
@@ -162,8 +161,8 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Create(ctx context.Conte
     }
 
     return  m, nil
+    {{ end -}}
 }
-    {{end}}
 
 func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Insert(ctx context.Context, ms ...*{{ $repo.Model.Name }}) error {
     // Build values query.
@@ -174,7 +173,7 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Insert(ctx context.Conte
 
     var cols []string
 
-    {{- range $i, $field := $repo.ColKeysFields }}
+    {{ range $i, $field := $repo.ColKeysFields }}
         cols = append(cols, {{ $repo.Receiver }}.col{{ $field.Name }})
     {{- end }}
     {{- range $i, $field := $repo.ColStatesFields }}
@@ -198,7 +197,7 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Insert(ctx context.Conte
         {{- end }}
         {{- range $i, $field := $repo.ColStatesFields }}
             {{ fieldToInsertSql $field }}
-        {{- end }}
+        {{- end -}}
     }
 
     qCols := strings.Join(cols, ", ")
@@ -237,26 +236,24 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
         offset = 1
     )
 
-    {{- range $i, $field := $repo.ColKeysFields }}
-
+    {{ range $i, $field := $repo.ColKeysFields }}
         where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, offset))
         args = append(args, m.{{ $field.Name }})
 
         offset++
-    {{- end }}
+    {{ end }}
 
     if skipZeroValues {
-        {{- range $i, $field := $repo.ColStatesFields }}
+        {{- range $i, $field := $repo.ColStatesFields -}}
             {{ fieldToUpdateSql $field }}
-        {{- end }}
+        {{- end -}}
     } else {
         {{- range $i, $field := $repo.ColStatesFields }}
-
             where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, offset))
             args = append(args, m.{{ $field.Name }})
 
             offset++
-        {{- end }}
+        {{ end -}}
     }
 
     qSets := strings.Join(sets, ", ")

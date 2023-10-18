@@ -204,6 +204,7 @@ func (repo *NetworkRepo) Insert(ctx context.Context, ms ...*Network) error {
 	)
 
 	var cols []string
+
 	cols = append(cols, repo.colID)
 	cols = append(cols, repo.colToken)
 	cols = append(cols, repo.colURI)
@@ -268,7 +269,6 @@ func (repo *NetworkRepo) Insert(ctx context.Context, ms ...*Network) error {
 		} else {
 			args = append(args, nil)
 		}
-
 	}
 
 	qCols := strings.Join(cols, ", ")
@@ -318,7 +318,6 @@ func (repo *NetworkRepo) Update(ctx context.Context, m *Network, skipZeroValues 
 	offset++
 
 	if skipZeroValues {
-
 		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colURI, offset))
 		args = append(args, m.URI)
 
@@ -358,9 +357,7 @@ func (repo *NetworkRepo) Update(ctx context.Context, m *Network, skipZeroValues 
 
 			offset++
 		}
-
 	} else {
-
 		where = append(where, fmt.Sprintf("%s = $%d", repo.colURI, offset))
 		args = append(args, m.URI)
 

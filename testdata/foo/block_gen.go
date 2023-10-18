@@ -193,6 +193,7 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 	)
 
 	var cols []string
+
 	cols = append(cols, repo.colID)
 	cols = append(cols, repo.colChainID)
 	cols = append(cols, repo.colHash)
@@ -248,7 +249,6 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 		}
 
 		args = append(args, blockTimestamp)
-
 	}
 
 	qCols := strings.Join(cols, ", ")
@@ -293,7 +293,6 @@ func (repo *BlockRepo) Update(ctx context.Context, m *Block, skipZeroValues bool
 	offset++
 
 	if skipZeroValues {
-
 		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
 		args = append(args, m.ChainID)
 
@@ -320,9 +319,7 @@ func (repo *BlockRepo) Update(ctx context.Context, m *Block, skipZeroValues bool
 		args = append(args, m.BlockTimestamp)
 
 		offset++
-
 	} else {
-
 		where = append(where, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
 		args = append(args, m.ChainID)
 

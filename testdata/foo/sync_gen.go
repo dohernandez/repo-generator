@@ -297,6 +297,7 @@ func (repo *SyncRepo) Insert(ctx context.Context, ms ...*Sync) error {
 	)
 
 	var cols []string
+
 	cols = append(cols, repo.colID)
 	cols = append(cols, repo.colState)
 	cols = append(cols, repo.colChainID)
@@ -399,7 +400,6 @@ func (repo *SyncRepo) Insert(ctx context.Context, ms ...*Sync) error {
 		args = append(args, m.CreatedAt)
 
 		args = append(args, m.UpdatedAt)
-
 	}
 
 	qCols := strings.Join(cols, ", ")
@@ -444,7 +444,6 @@ func (repo *SyncRepo) Update(ctx context.Context, m *Sync, skipZeroValues bool) 
 	offset++
 
 	if skipZeroValues {
-
 		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colState, offset))
 		args = append(args, m.State)
 
@@ -515,9 +514,7 @@ func (repo *SyncRepo) Update(ctx context.Context, m *Sync, skipZeroValues bool) 
 
 			offset++
 		}
-
 	} else {
-
 		where = append(where, fmt.Sprintf("%s = $%d", repo.colState, offset))
 		args = append(args, m.State)
 

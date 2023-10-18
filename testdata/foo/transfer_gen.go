@@ -260,6 +260,7 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 	)
 
 	var cols []string
+
 	cols = append(cols, repo.colID)
 	cols = append(cols, repo.colChainID)
 	cols = append(cols, repo.colBlockHash)
@@ -338,7 +339,6 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 		} else {
 			args = append(args, nil)
 		}
-
 	}
 
 	qCols := strings.Join(cols, ", ")
@@ -388,7 +388,6 @@ func (repo *TransferRepo) Update(ctx context.Context, m *Transfer, skipZeroValue
 	offset++
 
 	if skipZeroValues {
-
 		if m.BlockHash.String() != "" {
 			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
 			args = append(args, m.BlockHash.String())
@@ -463,9 +462,7 @@ func (repo *TransferRepo) Update(ctx context.Context, m *Transfer, skipZeroValue
 
 			offset++
 		}
-
 	} else {
-
 		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
 		args = append(args, m.BlockHash)
 

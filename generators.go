@@ -14,6 +14,8 @@ import (
 	"github.com/iancoleman/strcase"
 )
 
+const version = "v0.1.0"
+
 const repoTplFilename = "repo.tmpl"
 
 //go:embed repo.tmpl
@@ -23,6 +25,7 @@ type Generator struct {
 	Package string
 	Imports map[string]PackageImport
 	Repo    Repo
+	Version string
 }
 
 func Generate(sourcePath, outputPath string, model string, opts ...Option) error {
@@ -53,6 +56,7 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 		Package: tree.Name.Name,
 		Imports: imports,
 		Repo:    r,
+		Version: version,
 	}
 
 	// Populate the functions which should be exposed to the template.

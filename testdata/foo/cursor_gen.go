@@ -13,44 +13,50 @@ import (
 )
 
 var (
-	ErrCursorScan     = errors.New("scan")
+	// ErrCursorScan is the error that indicates a Cursor scan failed.
+	ErrCursorScan = errors.New("scan")
+	// ErrCursorNotFound is the error that indicates a Cursor was not found.
 	ErrCursorNotFound = errors.New("not found")
-	ErrCursorUpdate   = errors.New("update")
+	// ErrCursorUpdate is the error that indicates a Cursor was not updated.
+	ErrCursorUpdate = errors.New("update")
 )
 
-type CursorScanner interface {
+// CursorRow is an interface for anything that can scan a Cursor, copying the columns from the matched
+// row into the values pointed at by dest.
+type CursorRow interface {
 	Scan(dest ...any) error
 }
 
+// CursorRepo is a repository for the Cursor.
 type CursorRepo struct {
+	// db is the database connection.
 	db *sql.DB
 
-	table              string
-	colID              string
-	colName            string
-	colPosition        string
-	colLeader          string
-	colLeaderElectedAt string
-	colCreatedAt       string
-	colUpdatedAt       string
+	// table is the table name.
+	table string
 
-	cols []string
+	// colID is the Cursor.ID column name. It can be used in a queries to specify the column.
+	colID string
+	// colName is the Cursor.Name column name. It can be used in a queries to specify the column.
+	colName string
+	// colPosition is the Cursor.Position column name. It can be used in a queries to specify the column.
+	colPosition string
+	// colLeader is the Cursor.Leader column name. It can be used in a queries to specify the column.
+	colLeader string
+	// colLeaderElectedAt is the Cursor.LeaderElectedAt column name. It can be used in a queries to specify the column.
+	colLeaderElectedAt string
+	// colCreatedAt is the Cursor.CreatedAt column name. It can be used in a queries to specify the column.
+	colCreatedAt string
+	// colUpdatedAt is the Cursor.UpdatedAt column name. It can be used in a queries to specify the column.
+	colUpdatedAt string
 }
 
+// NewCursorRepo creates a new CursorRepo.
 func NewCursorRepo(db *sql.DB, table string) *CursorRepo {
-	cols := []string{
-		"id",
-		"name",
-		"position",
-		"leader",
-		"leader_elected_at",
-		"created_at",
-		"updated_at",
-	}
-
 	return &CursorRepo{
-		db:                 db,
-		table:              table,
+		db:    db,
+		table: table,
+
 		colID:              "id",
 		colName:            "name",
 		colPosition:        "position",
@@ -58,12 +64,11 @@ func NewCursorRepo(db *sql.DB, table string) *CursorRepo {
 		colLeaderElectedAt: "leader_elected_at",
 		colCreatedAt:       "created_at",
 		colUpdatedAt:       "updated_at",
-
-		cols: cols,
 	}
 }
 
-func (repo *CursorRepo) Scan(_ context.Context, s CursorScanner) (*Cursor, error) {
+// Scan scans a Cursor from the given CursorRow (sql.Row|sql.Rows).
+func (repo *CursorRepo) Scan(_ context.Context, s CursorRow) (*Cursor, error) {
 	var (
 		m Cursor
 
@@ -104,6 +109,7 @@ func (repo *CursorRepo) Scan(_ context.Context, s CursorScanner) (*Cursor, error
 	return &m, nil
 }
 
+// ScanAll scans a slice of Cursor from the given sql.Rows.
 func (repo *CursorRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Cursor, error) {
 	var ms []*Cursor
 
@@ -123,6 +129,7 @@ func (repo *CursorRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Cursor, e
 	return ms, nil
 }
 
+// Create creates a new Cursor and returns it after persisting.
 func (repo *CursorRepo) Create(ctx context.Context, m *Cursor) (*Cursor, error) {
 	var (
 		cols []string
@@ -185,6 +192,10 @@ func (repo *CursorRepo) Create(ctx context.Context, m *Cursor) (*Cursor, error) 
 	return m, nil
 }
 
+// Insert inserts one or more Cursor records into the database.
+//
+// When using this method the Cursor fields that are tag as "auto" should be set as the other fields non tag as "auto".
+// The same applies for those other fields that are tag as "omitempty".
 func (repo *CursorRepo) Insert(ctx context.Context, ms ...*Cursor) error {
 	// Build values query.
 	var (
@@ -257,6 +268,8 @@ func (repo *CursorRepo) Insert(ctx context.Context, ms ...*Cursor) error {
 	return nil
 }
 
+// valuesStatement returns a string with the values statement ($n) for the given columns,
+// starting from the given offset.
 func (repo *CursorRepo) valuesStatement(cols []string, offset int, separator bool) string {
 	var sep string
 
@@ -272,6 +285,14 @@ func (repo *CursorRepo) valuesStatement(cols []string, offset int, separator boo
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }
 
+// Update updates a Cursor.
+//
+// skipZeroValues indicates whether to skip zero values from the update statement.
+// In case of boolean fields, skipZeroValues is not applicable since false is the zero value of boolean and could be
+// a potential update. Always set this type of fields.
+//
+// Returns the error ErrCursorUpdate if the Cursor was not updated and database did not error,
+// otherwise database error.
 func (repo *CursorRepo) Update(ctx context.Context, m *Cursor, skipZeroValues bool) error {
 	var (
 		sets   []string

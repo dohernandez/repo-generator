@@ -14,50 +14,56 @@ import (
 )
 
 var (
-	ErrAssetScan     = errors.New("scan")
+	// ErrAssetScan is the error that indicates a Asset scan failed.
+	ErrAssetScan = errors.New("scan")
+	// ErrAssetNotFound is the error that indicates a Asset was not found.
 	ErrAssetNotFound = errors.New("not found")
-	ErrAssetUpdate   = errors.New("update")
+	// ErrAssetUpdate is the error that indicates a Asset was not updated.
+	ErrAssetUpdate = errors.New("update")
 )
 
-type AssetScanner interface {
+// AssetRow is an interface for anything that can scan a Asset, copying the columns from the matched
+// row into the values pointed at by dest.
+type AssetRow interface {
 	Scan(dest ...any) error
 }
 
+// AssetRepo is a repository for the Asset.
 type AssetRepo struct {
+	// db is the database connection.
 	db *sql.DB
 
-	table        string
-	colChainID   string
-	colAddress   string
-	colBlockHash string
-	colType      string
-	colName      string
-	colSymbol    string
-	colMetadata  string
-	colImmutable string
-	colCreatedAt string
-	colUpdatedAt string
+	// table is the table name.
+	table string
 
-	cols []string
+	// colChainID is the Asset.ChainID column name. It can be used in a queries to specify the column.
+	colChainID string
+	// colAddress is the Asset.Address column name. It can be used in a queries to specify the column.
+	colAddress string
+	// colBlockHash is the Asset.BlockHash column name. It can be used in a queries to specify the column.
+	colBlockHash string
+	// colType is the Asset.Type column name. It can be used in a queries to specify the column.
+	colType string
+	// colName is the Asset.Name column name. It can be used in a queries to specify the column.
+	colName string
+	// colSymbol is the Asset.Symbol column name. It can be used in a queries to specify the column.
+	colSymbol string
+	// colMetadata is the Asset.Metadata column name. It can be used in a queries to specify the column.
+	colMetadata string
+	// colImmutable is the Asset.Immutable column name. It can be used in a queries to specify the column.
+	colImmutable string
+	// colCreatedAt is the Asset.CreatedAt column name. It can be used in a queries to specify the column.
+	colCreatedAt string
+	// colUpdatedAt is the Asset.UpdatedAt column name. It can be used in a queries to specify the column.
+	colUpdatedAt string
 }
 
+// NewAssetRepo creates a new AssetRepo.
 func NewAssetRepo(db *sql.DB, table string) *AssetRepo {
-	cols := []string{
-		"chain_id",
-		"address",
-		"block_hash",
-		"types",
-		"name",
-		"symbol",
-		"metadata",
-		"immutable",
-		"created_at",
-		"updated_at",
-	}
-
 	return &AssetRepo{
-		db:           db,
-		table:        table,
+		db:    db,
+		table: table,
+
 		colChainID:   "chain_id",
 		colAddress:   "address",
 		colBlockHash: "block_hash",
@@ -68,12 +74,11 @@ func NewAssetRepo(db *sql.DB, table string) *AssetRepo {
 		colImmutable: "immutable",
 		colCreatedAt: "created_at",
 		colUpdatedAt: "updated_at",
-
-		cols: cols,
 	}
 }
 
-func (repo *AssetRepo) Scan(_ context.Context, s AssetScanner) (*Asset, error) {
+// Scan scans a Asset from the given AssetRow (sql.Row|sql.Rows).
+func (repo *AssetRepo) Scan(_ context.Context, s AssetRow) (*Asset, error) {
 	var (
 		m Asset
 
@@ -112,6 +117,7 @@ func (repo *AssetRepo) Scan(_ context.Context, s AssetScanner) (*Asset, error) {
 	return &m, nil
 }
 
+// ScanAll scans a slice of Asset from the given sql.Rows.
 func (repo *AssetRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Asset, error) {
 	var ms []*Asset
 
@@ -131,6 +137,7 @@ func (repo *AssetRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Asset, err
 	return ms, nil
 }
 
+// Create creates a new Asset and returns it after persisting.
 func (repo *AssetRepo) Create(ctx context.Context, m *Asset) (*Asset, error) {
 	var (
 		cols []string
@@ -194,6 +201,10 @@ func (repo *AssetRepo) Create(ctx context.Context, m *Asset) (*Asset, error) {
 	return m, nil
 }
 
+// Insert inserts one or more Asset records into the database.
+//
+// When using this method the Asset fields that are tag as "auto" should be set as the other fields non tag as "auto".
+// The same applies for those other fields that are tag as "omitempty".
 func (repo *AssetRepo) Insert(ctx context.Context, ms ...*Asset) error {
 	// Build values query.
 	var (
@@ -266,6 +277,8 @@ func (repo *AssetRepo) Insert(ctx context.Context, ms ...*Asset) error {
 	return nil
 }
 
+// valuesStatement returns a string with the values statement ($n) for the given columns,
+// starting from the given offset.
 func (repo *AssetRepo) valuesStatement(cols []string, offset int, separator bool) string {
 	var sep string
 
@@ -281,6 +294,14 @@ func (repo *AssetRepo) valuesStatement(cols []string, offset int, separator bool
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }
 
+// Update updates a Asset.
+//
+// skipZeroValues indicates whether to skip zero values from the update statement.
+// In case of boolean fields, skipZeroValues is not applicable since false is the zero value of boolean and could be
+// a potential update. Always set this type of fields.
+//
+// Returns the error ErrAssetUpdate if the Asset was not updated and database did not error,
+// otherwise database error.
 func (repo *AssetRepo) Update(ctx context.Context, m *Asset, skipZeroValues bool) error {
 	var (
 		sets   []string

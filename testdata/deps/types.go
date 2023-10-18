@@ -149,6 +149,10 @@ func (m *ContractMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func (m *ContractMetadata) IsEmpty() bool {
+	return len(*m) == 0
+}
+
 type State string
 
 func (s State) String() string {

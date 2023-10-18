@@ -75,6 +75,7 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 		"scanField":        scanField,
 		"sqlToField":       sqlToField,
 		"fieldToInsertSql": fieldToInsertSql,
+		"fieldToUpdateSql": fieldToUpdateSql,
 	}
 
 	t, err := template.New(repoTplFilename).Funcs(funcMap).ParseFS(repoTpl, repoTplFilename)
@@ -177,11 +178,11 @@ func fieldToCreateSql(f any) string {
 		} else {
 			switch fd.Type {
 			case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "float32", "float64":
-				ifEmpty = fmt.Sprintf("m.%s != 0", fd.Name)
+				ifEmpty = fmt.Sprintf("%s != 0", value)
 			case "time.Time":
 				ifEmpty = fmt.Sprintf("!m.%s.IsZero()", fd.Name)
 			case "string":
-				ifEmpty = fmt.Sprintf("m.%s != \"\"", fd.Name)
+				ifEmpty = fmt.Sprintf("%s != \"\"", value)
 			default:
 				if fd.HasNilMethod {
 					ifEmpty = "!" + tmplFieldNilMethod(fd, fmt.Sprintf("m.%s", fd.Name))
@@ -525,11 +526,11 @@ func fieldToInsertSql(f any) string {
 		} else {
 			switch fd.Type {
 			case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "float32", "float64":
-				ifEmpty = fmt.Sprintf("m.%s != 0", fd.Name)
+				ifEmpty = fmt.Sprintf("%s != 0", value)
 			case "time.Time":
 				ifEmpty = fmt.Sprintf("!m.%s.IsZero()", fd.Name)
 			case "string":
-				ifEmpty = fmt.Sprintf("m.%s != \"\"", fd.Name)
+				ifEmpty = fmt.Sprintf("%s != \"\"", value)
 			default:
 				if fd.HasNilMethod {
 					ifEmpty = "!" + tmplFieldNilMethod(fd, fmt.Sprintf("m.%s", fd.Name))
@@ -641,4 +642,84 @@ func tmplFieldNilMethod(f Field, a string) string {
 	}
 
 	return fmt.Sprintf("%s(%s)", f.Nil.Name, a)
+}
+
+func fieldToUpdateSql(f any) string {
+	fd, ok := f.(Field)
+	if !ok {
+		return ""
+	}
+
+	if fd.IsArrayable {
+		value := tmplFieldValueMethod(fd, fmt.Sprintf("m.%s[i]", fd.Name))
+
+		tmpl := `
+			if len(m.%[3]s) > 0 {
+				%[1]ss := make([]%[2]s, len(m.%[3]s))
+	
+				for i := range m.%[3]s {
+					%[1]ss[i] = %[4]s
+				}
+	
+				args = append(args, %[1]ss)
+			}
+			`
+
+		if fd.IsPointer && !fd.HasValueMethod {
+			value = fmt.Sprintf("*%s", value)
+		}
+
+		return fmt.Sprintf(tmpl, fd.LowerCaseName, fd.SqlType, fd.Name, value)
+	}
+
+	tmpl := `
+		sets = append(sets, fmt.Sprintf("%[1]s = $%%d", offset))
+		args = append(args, %[2]s)
+
+		offset++
+		`
+
+	value := tmplFieldValueMethod(fd, fmt.Sprintf("m.%s", fd.Name))
+
+	var ifEmpty string
+
+	if fd.HasNilMethod {
+		ifEmpty = "!" + tmplFieldNilMethod(fd, fmt.Sprintf("m.%s", fd.Name))
+	} else {
+		if fd.IsPointer {
+			ifEmpty = fmt.Sprintf("m.%s != nil", fd.Name)
+		} else {
+			fType := fd.Type
+
+			if fd.SqlType != "" {
+				fType = fd.SqlType
+			}
+
+			switch fType {
+			case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "float32", "float64":
+				ifEmpty = fmt.Sprintf("%s != 0", value)
+			case "time.Time":
+				ifEmpty = fmt.Sprintf("!m.%s.IsZero()", fd.Name)
+			case "string":
+				ifEmpty = fmt.Sprintf("%s != \"\"", value)
+			}
+		}
+	}
+
+	if ifEmpty != "" {
+		tmpl = `
+			if %[3]s {
+				sets = append(sets, fmt.Sprintf("%[1]s = $%%d", offset))
+				args = append(args, %[2]s)
+		
+				offset++
+			}
+			`
+
+		if fd.IsPointer && !fd.HasValueMethod {
+			value = fmt.Sprintf("*%s", value)
+		}
+	}
+
+	return fmt.Sprintf(tmpl, fd.ColName, value, ifEmpty)
 }

@@ -14,6 +14,7 @@ import (
 var (
 	ErrNetworkScan     = errors.New("scan")
 	ErrNetworkNotFound = errors.New("not found")
+	ErrNetworkUpdate   = errors.New("update")
 )
 
 type NetworkScanner interface {
@@ -288,4 +289,83 @@ func (repo *NetworkRepo) valuesStatement(cols []string, offset int, separator bo
 	}
 
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
+}
+
+func (repo *NetworkRepo) Update(ctx context.Context, m *Network) error {
+	var (
+		sets   []string
+		where  []string
+		args   []interface{}
+		offset = 1
+	)
+	where = append(where, fmt.Sprintf("id = $%d", offset))
+	args = append(args, m.ID)
+
+	offset++
+	where = append(where, fmt.Sprintf("token = $%d", offset))
+	args = append(args, m.Token)
+
+	offset++
+
+	sets = append(sets, fmt.Sprintf("uri = $%d", offset))
+	args = append(args, m.URI)
+
+	offset++
+
+	if m.Number != nil {
+		sets = append(sets, fmt.Sprintf("number = $%d", offset))
+		args = append(args, m.Number.Int64())
+
+		offset++
+	}
+
+	if m.Total.Int64() != 0 {
+		sets = append(sets, fmt.Sprintf("total = $%d", offset))
+		args = append(args, m.Total.Int64())
+
+		offset++
+	}
+
+	if m.IP != nil {
+		sets = append(sets, fmt.Sprintf("ip = $%d", offset))
+		args = append(args, *m.IP)
+
+		offset++
+	}
+
+	if !m.CreatedAt.IsZero() {
+		sets = append(sets, fmt.Sprintf("created_at = $%d", offset))
+		args = append(args, m.CreatedAt)
+
+		offset++
+	}
+
+	if !m.UpdatedAt.IsZero() {
+		sets = append(sets, fmt.Sprintf("updated_at = $%d", offset))
+		args = append(args, m.UpdatedAt)
+
+		offset++
+	}
+
+	qSets := strings.Join(sets, ", ")
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "UPDATE %s SET %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qSets, qWhere)
+
+	res, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrNetworkUpdate
+	}
+
+	return nil
 }

@@ -33,7 +33,7 @@ type Asset struct {
 	// {"decimals": int} for 'native','erc179','erc20','erc223','erc777'.
 	// {"baseURI": string} for 'erc721'.
 	// {"tokens": {"{tokenId}":{"uri": string, "type": "nft", "name": string, "decimals": int, "description": string, "image": string, "properties": string}}} for 'erc1155'.
-	Metadata deps.ContractMetadata `db:"metadata"`
+	Metadata deps.ContractMetadata `db:"metadata" nil:".IsEmpty"`
 
 	// Immutable specifies whether the asset could be updated or not.
 	// By default, this is set to false.

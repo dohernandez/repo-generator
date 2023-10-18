@@ -15,6 +15,7 @@ import (
 var (
 	ErrAssetScan     = errors.New("scan")
 	ErrAssetNotFound = errors.New("not found")
+	ErrAssetUpdate   = errors.New("update")
 )
 
 type AssetScanner interface {
@@ -266,4 +267,100 @@ func (repo *AssetRepo) valuesStatement(cols []string, offset int, separator bool
 	}
 
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
+}
+
+func (repo *AssetRepo) Update(ctx context.Context, m *Asset) error {
+	var (
+		sets   []string
+		where  []string
+		args   []interface{}
+		offset = 1
+	)
+	where = append(where, fmt.Sprintf("chain_id = $%d", offset))
+	args = append(args, m.ChainID)
+
+	offset++
+	where = append(where, fmt.Sprintf("address = $%d", offset))
+	args = append(args, m.Address)
+
+	offset++
+
+	if m.BlockHash.String() != "" {
+		sets = append(sets, fmt.Sprintf("block_hash = $%d", offset))
+		args = append(args, m.BlockHash.String())
+
+		offset++
+	}
+
+	if len(m.Type) > 0 {
+		typs := make([]string, len(m.Type))
+
+		for i := range m.Type {
+			typs[i] = string(m.Type[i])
+		}
+
+		args = append(args, typs)
+	}
+
+	if m.Name != "" {
+		sets = append(sets, fmt.Sprintf("name = $%d", offset))
+		args = append(args, m.Name)
+
+		offset++
+	}
+
+	if m.Symbol != "" {
+		sets = append(sets, fmt.Sprintf("symbol = $%d", offset))
+		args = append(args, m.Symbol)
+
+		offset++
+	}
+
+	if !m.Metadata.IsEmpty() {
+		sets = append(sets, fmt.Sprintf("metadata = $%d", offset))
+		args = append(args, m.Metadata)
+
+		offset++
+	}
+
+	sets = append(sets, fmt.Sprintf("immutable = $%d", offset))
+	args = append(args, m.Immutable)
+
+	offset++
+
+	if !m.CreatedAt.IsZero() {
+		sets = append(sets, fmt.Sprintf("created_at = $%d", offset))
+		args = append(args, m.CreatedAt)
+
+		offset++
+	}
+
+	if !m.UpdatedAt.IsZero() {
+		sets = append(sets, fmt.Sprintf("updated_at = $%d", offset))
+		args = append(args, m.UpdatedAt)
+
+		offset++
+	}
+
+	qSets := strings.Join(sets, ", ")
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "UPDATE %s SET %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qSets, qWhere)
+
+	res, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrAssetUpdate
+	}
+
+	return nil
 }

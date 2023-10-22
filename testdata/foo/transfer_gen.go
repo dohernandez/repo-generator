@@ -12,6 +12,8 @@ import (
 
 	"github.com/dohernandez/errors"
 	"github.com/dohernandez/repo-generator/testdata/deps"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -21,6 +23,8 @@ var (
 	ErrTransferNotFound = errors.New("not found")
 	// ErrTransferUpdate is the error that indicates a Transfer was not updated.
 	ErrTransferUpdate = errors.New("update")
+	// ErrTransferExists is returned when the Transfer already exists.
+	ErrTransferExists = errors.New("exists")
 )
 
 // TransferRow is an interface for anything that can scan a Transfer, copying the columns from the matched
@@ -122,6 +126,12 @@ func (repo *TransferRepo) Scan(_ context.Context, s TransferRow) (*Transfer, err
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrTransferNotFound
+		}
+
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return nil, errors.WrapError(err, ErrTransferExists)
 		}
 
 		return nil, errors.WrapError(err, ErrTransferScan)
@@ -366,7 +376,12 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		// TODO: Check if this is the error is duplicate and return sentinel error.
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return errors.WrapError(err, ErrTransferExists)
+		}
+
 		return errors.Wrap(err, "exec context")
 	}
 

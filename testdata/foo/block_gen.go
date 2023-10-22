@@ -11,6 +11,8 @@ import (
 
 	"github.com/dohernandez/errors"
 	"github.com/dohernandez/repo-generator/testdata/deps"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -20,6 +22,8 @@ var (
 	ErrBlockNotFound = errors.New("not found")
 	// ErrBlockUpdate is the error that indicates a Block was not updated.
 	ErrBlockUpdate = errors.New("update")
+	// ErrBlockExists is returned when the Block already exists.
+	ErrBlockExists = errors.New("exists")
 )
 
 // BlockRow is an interface for anything that can scan a Block, copying the columns from the matched
@@ -88,6 +92,12 @@ func (repo *BlockRepo) Scan(_ context.Context, s BlockRow) (*Block, error) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrBlockNotFound
+		}
+
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return nil, errors.WrapError(err, ErrBlockExists)
 		}
 
 		return nil, errors.WrapError(err, ErrBlockScan)
@@ -274,7 +284,12 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		// TODO: Check if this is the error is duplicate and return sentinel error.
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return errors.WrapError(err, ErrBlockExists)
+		}
+
 		return errors.Wrap(err, "exec context")
 	}
 

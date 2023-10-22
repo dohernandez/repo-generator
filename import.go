@@ -12,7 +12,9 @@ var nativeImports = map[string]string{
 }
 
 var defaultImports = map[string]string{
-	"errors": "github.com/dohernandez/errors",
+	"errors":    "github.com/dohernandez/errors",
+	"pgerrcode": "github.com/jackc/pgerrcode",
+	"pgconn":    "github.com/jackc/pgx/v5/pgconn",
 }
 
 var ErrPackageNotFound = errors.New("package not found")

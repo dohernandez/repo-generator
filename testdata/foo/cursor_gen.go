@@ -10,6 +10,8 @@ import (
 
 	"github.com/dohernandez/errors"
 	"github.com/google/uuid"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -19,6 +21,8 @@ var (
 	ErrCursorNotFound = errors.New("not found")
 	// ErrCursorUpdate is the error that indicates a Cursor was not updated.
 	ErrCursorUpdate = errors.New("update")
+	// ErrCursorExists is returned when the Cursor already exists.
+	ErrCursorExists = errors.New("exists")
 )
 
 // CursorRow is an interface for anything that can scan a Cursor, copying the columns from the matched
@@ -89,6 +93,12 @@ func (repo *CursorRepo) Scan(_ context.Context, s CursorRow) (*Cursor, error) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrCursorNotFound
+		}
+
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return nil, errors.WrapError(err, ErrCursorExists)
 		}
 
 		return nil, errors.WrapError(err, ErrCursorScan)
@@ -262,7 +272,12 @@ func (repo *CursorRepo) Insert(ctx context.Context, ms ...*Cursor) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		// TODO: Check if this is the error is duplicate and return sentinel error.
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return errors.WrapError(err, ErrCursorExists)
+		}
+
 		return errors.Wrap(err, "exec context")
 	}
 

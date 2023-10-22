@@ -10,6 +10,8 @@ import (
 
 	"github.com/dohernandez/errors"
 	"github.com/dohernandez/repo-generator/testdata/deps"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
 )
 
@@ -20,6 +22,8 @@ var (
 	ErrAssetNotFound = errors.New("not found")
 	// ErrAssetUpdate is the error that indicates a Asset was not updated.
 	ErrAssetUpdate = errors.New("update")
+	// ErrAssetExists is returned when the Asset already exists.
+	ErrAssetExists = errors.New("exists")
 )
 
 // AssetRow is an interface for anything that can scan a Asset, copying the columns from the matched
@@ -102,6 +106,12 @@ func (repo *AssetRepo) Scan(_ context.Context, s AssetRow) (*Asset, error) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrAssetNotFound
+		}
+
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return nil, errors.WrapError(err, ErrAssetExists)
 		}
 
 		return nil, errors.WrapError(err, ErrAssetScan)
@@ -270,7 +280,12 @@ func (repo *AssetRepo) Insert(ctx context.Context, ms ...*Asset) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		// TODO: Check if this is the error is duplicate and return sentinel error.
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return errors.WrapError(err, ErrAssetExists)
+		}
+
 		return errors.Wrap(err, "exec context")
 	}
 

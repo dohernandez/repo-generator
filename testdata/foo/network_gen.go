@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/dohernandez/errors"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -19,6 +21,8 @@ var (
 	ErrNetworkNotFound = errors.New("not found")
 	// ErrNetworkUpdate is the error that indicates a Network was not updated.
 	ErrNetworkUpdate = errors.New("update")
+	// ErrNetworkExists is returned when the Network already exists.
+	ErrNetworkExists = errors.New("exists")
 )
 
 // NetworkRow is an interface for anything that can scan a Network, copying the columns from the matched
@@ -94,6 +98,12 @@ func (repo *NetworkRepo) Scan(_ context.Context, s NetworkRow) (*Network, error)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNetworkNotFound
+		}
+
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return nil, errors.WrapError(err, ErrNetworkExists)
 		}
 
 		return nil, errors.WrapError(err, ErrNetworkScan)
@@ -285,7 +295,12 @@ func (repo *NetworkRepo) Insert(ctx context.Context, ms ...*Network) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		// TODO: Check if this is the error is duplicate and return sentinel error.
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return errors.WrapError(err, ErrNetworkExists)
+		}
+
 		return errors.Wrap(err, "exec context")
 	}
 

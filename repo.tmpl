@@ -22,6 +22,8 @@ var (
     Err{{ $repo.Model.Name }}NotFound = errors.New("not found")
     // Err{{ $repo.Model.Name }}Update is the error that indicates a {{ $repo.Model.Name }} was not updated.
     Err{{ $repo.Model.Name }}Update = errors.New("update")
+    // Err{{ $repo.Model.Name }}Exists is returned when the {{ $repo.Model.Name }} already exists.
+    Err{{ $repo.Model.Name }}Exists = errors.New("exists")
 )
 
 // {{ $repo.Model.Name }}Row is an interface for anything that can scan a {{ $repo.Model.Name }}, copying the columns from the matched
@@ -87,6 +89,12 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Scan(_ context.Context, 
     if err != nil {
         if errors.Is(err, sql.ErrNoRows) {
             return nil, Err{{ $repo.Model.Name }}NotFound
+        }
+
+        var pgErr *pgconn.PgError
+
+        if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation{
+            return nil, errors.WrapError(err, Err{{ $repo.Model.Name }}Exists)
         }
 
         return nil, errors.WrapError(err, Err{{ $repo.Model.Name }}Scan)
@@ -222,7 +230,12 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Insert(ctx context.Conte
 
     _, err := {{ $repo.Receiver }}.db.ExecContext(ctx, sql, args...)
     if err != nil {
-        // TODO: Check if this is the error is duplicate and return sentinel error.
+        var pgErr *pgconn.PgError
+
+        if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation{
+            return errors.WrapError(err, Err{{ $repo.Model.Name }}Exists)
+        }
+
         return errors.Wrap(err, "exec context")
     }
 

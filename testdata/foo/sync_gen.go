@@ -11,6 +11,8 @@ import (
 
 	"github.com/dohernandez/errors"
 	"github.com/dohernandez/repo-generator/testdata/deps"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
@@ -20,6 +22,8 @@ var (
 	ErrSyncNotFound = errors.New("not found")
 	// ErrSyncUpdate is the error that indicates a Sync was not updated.
 	ErrSyncUpdate = errors.New("update")
+	// ErrSyncExists is returned when the Sync already exists.
+	ErrSyncExists = errors.New("exists")
 )
 
 // SyncRow is an interface for anything that can scan a Sync, copying the columns from the matched
@@ -124,6 +128,12 @@ func (repo *SyncRepo) Scan(_ context.Context, s SyncRow) (*Sync, error) {
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrSyncNotFound
+		}
+
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return nil, errors.WrapError(err, ErrSyncExists)
 		}
 
 		return nil, errors.WrapError(err, ErrSyncScan)
@@ -432,7 +442,12 @@ func (repo *SyncRepo) Insert(ctx context.Context, ms ...*Sync) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		// TODO: Check if this is the error is duplicate and return sentinel error.
+		var pgErr *pgconn.PgError
+
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return errors.WrapError(err, ErrSyncExists)
+		}
+
 		return errors.Wrap(err, "exec context")
 	}
 

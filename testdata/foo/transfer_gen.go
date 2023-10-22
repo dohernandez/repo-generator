@@ -308,12 +308,12 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
 	args := make([]interface{}, 0, lms*lcols)
 
-	for i := range ms {
-		m := ms[i]
+	for idx := range ms {
+		m := ms[idx]
 
-		indexOffset := i * lcols
+		indexOffset := idx * lcols
 
-		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, idx != lms-1))
 
 		args = append(args, m.ID.String())
 
@@ -325,19 +325,15 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 
 		var transactionHash sql.NullString
 
-		if m.TransactionHash != nil {
-			transactionHash.String = m.TransactionHash.String()
-			transactionHash.Valid = true
-		}
+		transactionHash.String = m.TransactionHash.String()
+		transactionHash.Valid = true
 
 		args = append(args, transactionHash)
 
 		var methodID sql.NullString
 
-		if m.MethodID != nil {
-			methodID.String = *m.MethodID
-			methodID.Valid = true
-		}
+		methodID.String = *m.MethodID
+		methodID.Valid = true
 
 		args = append(args, methodID)
 
@@ -354,19 +350,13 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 
 		if m.Value != nil {
 			args = append(args, m.Value.Int64())
-		} else {
-			args = append(args, nil)
 		}
 
 		args = append(args, m.Metadata)
 
 		args = append(args, m.TraceAddress)
 
-		if !m.CreatedAt.IsZero() {
-			args = append(args, m.CreatedAt)
-		} else {
-			args = append(args, nil)
-		}
+		args = append(args, m.CreatedAt)
 	}
 
 	qCols := strings.Join(cols, ", ")
@@ -376,6 +366,7 @@ func (repo *TransferRepo) Insert(ctx context.Context, ms ...*Transfer) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
+		// TODO: Check if this is the error is duplicate and return sentinel error.
 		return errors.Wrap(err, "exec context")
 	}
 
@@ -501,60 +492,61 @@ func (repo *TransferRepo) Update(ctx context.Context, m *Transfer, skipZeroValue
 			offset++
 		}
 	} else {
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
-		args = append(args, m.BlockHash)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
+		args = append(args, m.BlockHash.String())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
 		args = append(args, m.BlockTimestamp)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colTransactionHash, offset))
-		args = append(args, m.TransactionHash)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTransactionHash, offset))
+		args = append(args, m.TransactionHash.String())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colMethodID, offset))
-		args = append(args, m.MethodID)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colMethodID, offset))
+		args = append(args, *m.MethodID)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colFromAddress, offset))
-		args = append(args, m.FromAddress)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colFromAddress, offset))
+		args = append(args, m.FromAddress.String())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colToAddress, offset))
-		args = append(args, m.ToAddress)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colToAddress, offset))
+		args = append(args, m.ToAddress.String())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colAssetContract, offset))
-		args = append(args, m.AssetContract)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colAssetContract, offset))
+		args = append(args, m.AssetContract.String())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colValue, offset))
-		args = append(args, m.Value)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colValue, offset))
+		args = append(args, m.Value.Int64())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colMetadata, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colMetadata, offset))
 		args = append(args, m.Metadata)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colTraceAddress, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTraceAddress, offset))
 		args = append(args, m.TraceAddress)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
 		args = append(args, m.CreatedAt)
 
 		offset++
+
 	}
 
 	qSets := strings.Join(sets, ", ")
@@ -575,6 +567,34 @@ func (repo *TransferRepo) Update(ctx context.Context, m *Transfer, skipZeroValue
 
 	if rowsAffected == 0 {
 		return ErrTransferUpdate
+	}
+
+	return nil
+}
+
+// Delete deletes a Transfer.
+//
+// The Transfer must have the fields that are tag as "key" set.
+func (repo *TransferRepo) Delete(ctx context.Context, m *Transfer) error {
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, 1))
+	args = append(args, m.ID)
+
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colChainID, 2))
+	args = append(args, m.ChainID)
+
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "DELETE FROM %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qWhere)
+
+	_, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return errors.Wrap(err, "exec context")
 	}
 
 	return nil

@@ -200,12 +200,12 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Insert(ctx context.Conte
     // Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
     args := make([]interface{}, 0, lms*lcols)
 
-    for i := range ms {
-        m := ms[i]
+    for idx := range ms {
+        m := ms[idx]
 
-        indexOffset := i * lcols
+        indexOffset := idx * lcols
 
-        valuesQueryBuilder.WriteString({{ $repo.Receiver }}.valuesStatement(cols, indexOffset, i != lms-1))
+        valuesQueryBuilder.WriteString({{ $repo.Receiver }}.valuesStatement(cols, indexOffset, idx != lms-1))
 
         {{- range $i, $field := $repo.ColKeysFields }}
             {{ fieldToInsertSql $field }}
@@ -222,6 +222,7 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Insert(ctx context.Conte
 
     _, err := {{ $repo.Receiver }}.db.ExecContext(ctx, sql, args...)
     if err != nil {
+        // TODO: Check if this is the error is duplicate and return sentinel error.
         return errors.Wrap(err, "exec context")
     }
 
@@ -270,14 +271,11 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
 
     if skipZeroValues {
         {{- range $i, $field := $repo.ColStatesFields -}}
-            {{ fieldToUpdateSql $field }}
-        {{- end -}}
+            {{ fieldToUpdateSql $field true }}
+        {{ end -}}
     } else {
-        {{- range $i, $field := $repo.ColStatesFields }}
-            where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, offset))
-            args = append(args, m.{{ $field.Name }})
-
-            offset++
+        {{- range $i, $field := $repo.ColStatesFields -}}
+            {{ fieldToUpdateSql $field false }}
         {{ end -}}
     }
 
@@ -299,6 +297,33 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
 
     if rowsAffected == 0 {
         return Err{{ $repo.Model.Name }}Update
+    }
+
+    return nil
+}
+
+// Delete deletes a {{ $repo.Model.Name }}.
+//
+// The {{ $repo.Model.Name }} must have the fields that are tag as "key" set.
+func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Delete(ctx context.Context, m *{{ $repo.Model.Name }}) error {
+    var (
+        where []string
+        args  []interface{}
+    )
+
+    {{ range $i, $field := $repo.ColKeysFields }}
+        where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, {{ inc $i }}))
+        args = append(args, m.{{ $field.Name }})
+    {{ end }}
+
+    qWhere := strings.Join(where, " AND ")
+
+    sql := "DELETE FROM %s WHERE %s"
+    sql = fmt.Sprintf(sql, {{ $repo.Receiver }}.table, qWhere)
+
+    _, err := {{ $repo.Receiver }}.db.ExecContext(ctx, sql, args...)
+    if err != nil {
+        return errors.Wrap(err, "exec context")
     }
 
     return nil

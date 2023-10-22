@@ -15,6 +15,10 @@ var HexToHash = common.HexToHash
 
 type ChainID int
 
+func (c ChainID) String() string {
+	return string(c)
+}
+
 const (
 	EthereumChainID ChainID = 1
 

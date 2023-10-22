@@ -218,12 +218,12 @@ func (repo *CursorRepo) Insert(ctx context.Context, ms ...*Cursor) error {
 	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
 	args := make([]interface{}, 0, lms*lcols)
 
-	for i := range ms {
-		m := ms[i]
+	for idx := range ms {
+		m := ms[idx]
 
-		indexOffset := i * lcols
+		indexOffset := idx * lcols
 
-		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, idx != lms-1))
 
 		args = append(args, m.ID)
 
@@ -262,6 +262,7 @@ func (repo *CursorRepo) Insert(ctx context.Context, ms ...*Cursor) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
+		// TODO: Check if this is the error is duplicate and return sentinel error.
 		return errors.Wrap(err, "exec context")
 	}
 
@@ -324,10 +325,12 @@ func (repo *CursorRepo) Update(ctx context.Context, m *Cursor, skipZeroValues bo
 
 		offset++
 
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeaderElectedAt, offset))
-		args = append(args, m.LeaderElectedAt)
+		if !m.LeaderElectedAt.IsZero() {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeaderElectedAt, offset))
+			args = append(args, m.LeaderElectedAt)
 
-		offset++
+			offset++
+		}
 
 		if !m.CreatedAt.IsZero() {
 			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
@@ -343,35 +346,36 @@ func (repo *CursorRepo) Update(ctx context.Context, m *Cursor, skipZeroValues bo
 			offset++
 		}
 	} else {
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colName, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colName, offset))
 		args = append(args, m.Name)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colPosition, offset))
-		args = append(args, m.Position)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colPosition, offset))
+		args = append(args, m.Position.String())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colLeader, offset))
-		args = append(args, m.Leader)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeader, offset))
+		args = append(args, m.Leader.String())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colLeaderElectedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeaderElectedAt, offset))
 		args = append(args, m.LeaderElectedAt)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
 		args = append(args, m.CreatedAt)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
 		args = append(args, m.UpdatedAt)
 
 		offset++
+
 	}
 
 	qSets := strings.Join(sets, ", ")
@@ -392,6 +396,31 @@ func (repo *CursorRepo) Update(ctx context.Context, m *Cursor, skipZeroValues bo
 
 	if rowsAffected == 0 {
 		return ErrCursorUpdate
+	}
+
+	return nil
+}
+
+// Delete deletes a Cursor.
+//
+// The Cursor must have the fields that are tag as "key" set.
+func (repo *CursorRepo) Delete(ctx context.Context, m *Cursor) error {
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, 1))
+	args = append(args, m.ID)
+
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "DELETE FROM %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qWhere)
+
+	_, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return errors.Wrap(err, "exec context")
 	}
 
 	return nil

@@ -153,14 +153,13 @@ func (repo *AssetRepo) Create(ctx context.Context, m *Asset) (*Asset, error) {
 	cols = append(cols, repo.colBlockHash)
 	args = append(args, m.BlockHash.String())
 
-	cols = append(cols, repo.colType)
-
 	typs := make([]string, len(m.Type))
 
 	for i := range m.Type {
 		typs[i] = string(m.Type[i])
 	}
 
+	cols = append(cols, repo.colType)
 	args = append(args, typs)
 
 	cols = append(cols, repo.colName)
@@ -230,12 +229,12 @@ func (repo *AssetRepo) Insert(ctx context.Context, ms ...*Asset) error {
 	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
 	args := make([]interface{}, 0, lms*lcols)
 
-	for i := range ms {
-		m := ms[i]
+	for idx := range ms {
+		m := ms[idx]
 
-		indexOffset := i * lcols
+		indexOffset := idx * lcols
 
-		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, idx != lms-1))
 
 		args = append(args, m.ChainID)
 
@@ -271,6 +270,7 @@ func (repo *AssetRepo) Insert(ctx context.Context, ms ...*Asset) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
+		// TODO: Check if this is the error is duplicate and return sentinel error.
 		return errors.Wrap(err, "exec context")
 	}
 
@@ -334,7 +334,6 @@ func (repo *AssetRepo) Update(ctx context.Context, m *Asset, skipZeroValues bool
 			for i := range m.Type {
 				typs[i] = string(m.Type[i])
 			}
-
 			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colType, offset))
 			args = append(args, typs)
 
@@ -381,45 +380,52 @@ func (repo *AssetRepo) Update(ctx context.Context, m *Asset, skipZeroValues bool
 			offset++
 		}
 	} else {
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
-		args = append(args, m.BlockHash)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
+		args = append(args, m.BlockHash.String())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colType, offset))
-		args = append(args, m.Type)
+		typs := make([]string, len(m.Type))
+
+		for i := range m.Type {
+			typs[i] = string(m.Type[i])
+		}
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colType, offset))
+		args = append(args, typs)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colName, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colName, offset))
 		args = append(args, m.Name)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colSymbol, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colSymbol, offset))
 		args = append(args, m.Symbol)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colMetadata, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colMetadata, offset))
 		args = append(args, m.Metadata)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colImmutable, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colImmutable, offset))
 		args = append(args, m.Immutable)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
 		args = append(args, m.CreatedAt)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
 		args = append(args, m.UpdatedAt)
 
 		offset++
+
 	}
 
 	qSets := strings.Join(sets, ", ")
@@ -440,6 +446,34 @@ func (repo *AssetRepo) Update(ctx context.Context, m *Asset, skipZeroValues bool
 
 	if rowsAffected == 0 {
 		return ErrAssetUpdate
+	}
+
+	return nil
+}
+
+// Delete deletes a Asset.
+//
+// The Asset must have the fields that are tag as "key" set.
+func (repo *AssetRepo) Delete(ctx context.Context, m *Asset) error {
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colChainID, 1))
+	args = append(args, m.ChainID)
+
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colAddress, 2))
+	args = append(args, m.Address)
+
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "DELETE FROM %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qWhere)
+
+	_, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return errors.Wrap(err, "exec context")
 	}
 
 	return nil

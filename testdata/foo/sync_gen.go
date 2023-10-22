@@ -347,18 +347,14 @@ func (repo *SyncRepo) Insert(ctx context.Context, ms ...*Sync) error {
 	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
 	args := make([]interface{}, 0, lms*lcols)
 
-	for i := range ms {
-		m := ms[i]
+	for idx := range ms {
+		m := ms[idx]
 
-		indexOffset := i * lcols
+		indexOffset := idx * lcols
 
-		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, idx != lms-1))
 
-		if !deps.IsUUIDZero(m.ID) {
-			args = append(args, m.ID)
-		} else {
-			args = append(args, nil)
-		}
+		args = append(args, m.ID)
 
 		args = append(args, m.State)
 
@@ -366,8 +362,6 @@ func (repo *SyncRepo) Insert(ctx context.Context, ms ...*Sync) error {
 
 		if m.BlockNumber != nil {
 			args = append(args, m.BlockNumber.String())
-		} else {
-			args = append(args, nil)
 		}
 
 		var blockHash sql.NullString
@@ -438,6 +432,7 @@ func (repo *SyncRepo) Insert(ctx context.Context, ms ...*Sync) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
+		// TODO: Check if this is the error is duplicate and return sentinel error.
 		return errors.Wrap(err, "exec context")
 	}
 
@@ -510,6 +505,87 @@ func (repo *SyncRepo) Update(ctx context.Context, m *Sync, skipZeroValues bool) 
 
 		offset++
 
+		if !m.BlockTimestamp.IsZero() {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
+			args = append(args, m.BlockTimestamp)
+
+			offset++
+		}
+
+		if m.BlockHeaderPath != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHeaderPath, offset))
+			args = append(args, m.BlockHeaderPath)
+
+			offset++
+		}
+
+		if m.TransactionsPath != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTransactionsPath, offset))
+			args = append(args, m.TransactionsPath)
+
+			offset++
+		}
+
+		if m.ReceiptsPath != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colReceiptsPath, offset))
+			args = append(args, m.ReceiptsPath)
+
+			offset++
+		}
+
+		if m.LogsPath != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLogsPath, offset))
+			args = append(args, m.LogsPath)
+
+			offset++
+		}
+
+		if m.TracesPath != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTracesPath, offset))
+			args = append(args, m.TracesPath)
+
+			offset++
+		}
+
+		if !m.CreatedAt.IsZero() {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+			args = append(args, m.CreatedAt)
+
+			offset++
+		}
+
+		if !m.UpdatedAt.IsZero() {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
+			args = append(args, m.UpdatedAt)
+
+			offset++
+		}
+	} else {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colState, offset))
+		args = append(args, m.State)
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
+		args = append(args, m.ChainID)
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockNumber, offset))
+		args = append(args, m.BlockNumber.String())
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
+		args = append(args, m.BlockHash.String())
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colParentHash, offset))
+		args = append(args, m.ParentHash.String())
+
+		offset++
+
 		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
 		args = append(args, m.BlockTimestamp)
 
@@ -540,84 +616,16 @@ func (repo *SyncRepo) Update(ctx context.Context, m *Sync, skipZeroValues bool) 
 
 		offset++
 
-		if !m.CreatedAt.IsZero() {
-			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
-			args = append(args, m.CreatedAt)
-
-			offset++
-		}
-
-		if !m.UpdatedAt.IsZero() {
-			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
-			args = append(args, m.UpdatedAt)
-
-			offset++
-		}
-	} else {
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colState, offset))
-		args = append(args, m.State)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
-		args = append(args, m.ChainID)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockNumber, offset))
-		args = append(args, m.BlockNumber)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockHash, offset))
-		args = append(args, m.BlockHash)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colParentHash, offset))
-		args = append(args, m.ParentHash)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
-		args = append(args, m.BlockTimestamp)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockHeaderPath, offset))
-		args = append(args, m.BlockHeaderPath)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colTransactionsPath, offset))
-		args = append(args, m.TransactionsPath)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colReceiptsPath, offset))
-		args = append(args, m.ReceiptsPath)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colLogsPath, offset))
-		args = append(args, m.LogsPath)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colTracesPath, offset))
-		args = append(args, m.TracesPath)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
 		args = append(args, m.CreatedAt)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
 		args = append(args, m.UpdatedAt)
 
 		offset++
+
 	}
 
 	qSets := strings.Join(sets, ", ")
@@ -638,6 +646,31 @@ func (repo *SyncRepo) Update(ctx context.Context, m *Sync, skipZeroValues bool) 
 
 	if rowsAffected == 0 {
 		return ErrSyncUpdate
+	}
+
+	return nil
+}
+
+// Delete deletes a Sync.
+//
+// The Sync must have the fields that are tag as "key" set.
+func (repo *SyncRepo) Delete(ctx context.Context, m *Sync) error {
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, 1))
+	args = append(args, m.ID)
+
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "DELETE FROM %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qWhere)
+
+	_, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return errors.Wrap(err, "exec context")
 	}
 
 	return nil

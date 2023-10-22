@@ -70,6 +70,7 @@ func (repo *BlockRepo) Scan(_ context.Context, s BlockRow) (*Block, error) {
 	var (
 		m Block
 
+		chainID        int
 		hash           sql.NullString
 		number         int64
 		parentHash     sql.NullString
@@ -78,7 +79,7 @@ func (repo *BlockRepo) Scan(_ context.Context, s BlockRow) (*Block, error) {
 
 	err := s.Scan(
 		&m.ID,
-		&m.ChainID,
+		&chainID,
 		&hash,
 		&number,
 		&parentHash,
@@ -91,6 +92,8 @@ func (repo *BlockRepo) Scan(_ context.Context, s BlockRow) (*Block, error) {
 
 		return nil, errors.WrapError(err, ErrBlockScan)
 	}
+
+	m.ChainID = deps.ChainID(chainID)
 
 	if hash.Valid {
 		m.Hash = deps.HexToHash(hash.String)
@@ -145,7 +148,7 @@ func (repo *BlockRepo) Create(ctx context.Context, m *Block) (*Block, error) {
 	}
 
 	cols = append(cols, repo.colChainID)
-	args = append(args, m.ChainID)
+	args = append(args, int(m.ChainID))
 
 	var hash sql.NullString
 
@@ -227,20 +230,16 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
 	args := make([]interface{}, 0, lms*lcols)
 
-	for i := range ms {
-		m := ms[i]
+	for idx := range ms {
+		m := ms[idx]
 
-		indexOffset := i * lcols
+		indexOffset := idx * lcols
 
-		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, idx != lms-1))
 
-		if !deps.IsUUIDZero(m.ID) {
-			args = append(args, m.ID)
-		} else {
-			args = append(args, nil)
-		}
+		args = append(args, m.ID)
 
-		args = append(args, m.ChainID)
+		args = append(args, int(m.ChainID))
 
 		var hash sql.NullString
 
@@ -251,8 +250,6 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 
 		if m.Number != nil {
 			args = append(args, m.Number.Int64())
-		} else {
-			args = append(args, nil)
 		}
 
 		var parentHash sql.NullString
@@ -264,10 +261,8 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 
 		var blockTimestamp sql.NullTime
 
-		if !m.BlockTimestamp.IsZero() {
-			blockTimestamp.Time = m.BlockTimestamp
-			blockTimestamp.Valid = true
-		}
+		blockTimestamp.Time = m.BlockTimestamp
+		blockTimestamp.Valid = true
 
 		args = append(args, blockTimestamp)
 	}
@@ -279,6 +274,7 @@ func (repo *BlockRepo) Insert(ctx context.Context, ms ...*Block) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
+		// TODO: Check if this is the error is duplicate and return sentinel error.
 		return errors.Wrap(err, "exec context")
 	}
 
@@ -324,10 +320,12 @@ func (repo *BlockRepo) Update(ctx context.Context, m *Block, skipZeroValues bool
 	offset++
 
 	if skipZeroValues {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
-		args = append(args, m.ChainID)
+		if int(m.ChainID) != 0 {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
+			args = append(args, int(m.ChainID))
 
-		offset++
+			offset++
+		}
 
 		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colHash, offset))
 		args = append(args, m.Hash.String())
@@ -346,35 +344,38 @@ func (repo *BlockRepo) Update(ctx context.Context, m *Block, skipZeroValues bool
 
 		offset++
 
+		if !m.BlockTimestamp.IsZero() {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
+			args = append(args, m.BlockTimestamp)
+
+			offset++
+		}
+	} else {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
+		args = append(args, int(m.ChainID))
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colHash, offset))
+		args = append(args, m.Hash.String())
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colNumber, offset))
+		args = append(args, m.Number.Int64())
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colParentHash, offset))
+		args = append(args, m.ParentHash.String())
+
+		offset++
+
 		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
 		args = append(args, m.BlockTimestamp)
 
 		offset++
-	} else {
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
-		args = append(args, m.ChainID)
 
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colHash, offset))
-		args = append(args, m.Hash)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colNumber, offset))
-		args = append(args, m.Number)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colParentHash, offset))
-		args = append(args, m.ParentHash)
-
-		offset++
-
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colBlockTimestamp, offset))
-		args = append(args, m.BlockTimestamp)
-
-		offset++
 	}
 
 	qSets := strings.Join(sets, ", ")
@@ -395,6 +396,31 @@ func (repo *BlockRepo) Update(ctx context.Context, m *Block, skipZeroValues bool
 
 	if rowsAffected == 0 {
 		return ErrBlockUpdate
+	}
+
+	return nil
+}
+
+// Delete deletes a Block.
+//
+// The Block must have the fields that are tag as "key" set.
+func (repo *BlockRepo) Delete(ctx context.Context, m *Block) error {
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, 1))
+	args = append(args, m.ID)
+
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "DELETE FROM %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qWhere)
+
+	_, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return errors.Wrap(err, "exec context")
 	}
 
 	return nil

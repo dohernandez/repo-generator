@@ -24,9 +24,23 @@ const (
 	columnAutoOpt      = "auto"
 )
 
+type MethodCmpOperator string
+
+func (o MethodCmpOperator) String() string {
+	return string(o)
+}
+
+const (
+	MethodCmpOperatorNotEqual MethodCmpOperator = "!="
+	MethodCmpOperatorNot      MethodCmpOperator = "!"
+	MethodCmpOperatorGreater  MethodCmpOperator = ">"
+)
+
 type Method struct {
-	Name string
-	Pkg  string
+	Name        string
+	Pkg         string
+	CmpOperator MethodCmpOperator
+	EmptyValue  string
 }
 
 // Field describes a field within a builder struct.
@@ -188,7 +202,6 @@ func parseField(field *ast.Field) (Field, error) {
 
 		hasValueMethod bool
 		hasArrayable   bool
-
 		hasSqlNullable bool
 		hasScanMethod  bool
 		hasNilMethod   bool
@@ -258,7 +271,7 @@ func parseField(field *ast.Field) (Field, error) {
 		hasValueMethod = true
 	}
 
-	nMethod := parseTagNil(field)
+	nMethod := parseTagNil(field, ftype, sType, isArray, hasValueMethod)
 	if nMethod != (Method{}) {
 		hasNilMethod = true
 	}
@@ -367,8 +380,49 @@ func parseTagValue(field *ast.Field) Method {
 	return parseTagMethod(field, columnValueTag)
 }
 
-func parseTagNil(field *ast.Field) Method {
-	return parseTagMethod(field, columnNilTag)
+func parseTagNil(field *ast.Field, fType, sType string, isArray, hasValueMethod bool) Method {
+	nMethod := parseTagMethod(field, columnNilTag)
+
+	if nMethod != (Method{}) {
+		nMethod.CmpOperator = MethodCmpOperatorNot
+
+		return nMethod
+	}
+
+	if isArray {
+		return Method{
+			Name:        "len",
+			CmpOperator: MethodCmpOperatorGreater,
+			EmptyValue:  "0",
+		}
+	}
+
+	if hasValueMethod {
+		if sType != "" {
+			fType = sType
+		}
+	}
+
+	switch fType {
+	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "float32", "float64":
+		nMethod = Method{
+			CmpOperator: MethodCmpOperatorNotEqual,
+			EmptyValue:  "0",
+		}
+	case "time.Time":
+		nMethod = Method{
+			Name:        "IsZero",
+			Pkg:         "_",
+			CmpOperator: MethodCmpOperatorNot,
+		}
+	case "string":
+		nMethod = Method{
+			CmpOperator: MethodCmpOperatorNotEqual,
+			EmptyValue:  "\"\"",
+		}
+	}
+
+	return nMethod
 }
 
 func parseTagMethod(field *ast.Field, tag string) Method {

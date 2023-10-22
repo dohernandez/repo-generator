@@ -242,18 +242,14 @@ func (repo *NetworkRepo) Insert(ctx context.Context, ms ...*Network) error {
 	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
 	args := make([]interface{}, 0, lms*lcols)
 
-	for i := range ms {
-		m := ms[i]
+	for idx := range ms {
+		m := ms[idx]
 
-		indexOffset := i * lcols
+		indexOffset := idx * lcols
 
-		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, i != lms-1))
+		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, idx != lms-1))
 
-		if m.ID != "" {
-			args = append(args, m.ID)
-		} else {
-			args = append(args, nil)
-		}
+		args = append(args, m.ID)
 
 		args = append(args, m.Token)
 
@@ -266,10 +262,8 @@ func (repo *NetworkRepo) Insert(ctx context.Context, ms ...*Network) error {
 
 		var number sql.NullInt64
 
-		if m.Number != nil {
-			number.Int64 = m.Number.Int64()
-			number.Valid = true
-		}
+		number.Int64 = m.Number.Int64()
+		number.Valid = true
 
 		args = append(args, number)
 
@@ -277,21 +271,11 @@ func (repo *NetworkRepo) Insert(ctx context.Context, ms ...*Network) error {
 
 		if m.IP != nil {
 			args = append(args, *m.IP)
-		} else {
-			args = append(args, nil)
 		}
 
-		if !m.CreatedAt.IsZero() {
-			args = append(args, m.CreatedAt)
-		} else {
-			args = append(args, nil)
-		}
+		args = append(args, m.CreatedAt)
 
-		if !m.UpdatedAt.IsZero() {
-			args = append(args, m.UpdatedAt)
-		} else {
-			args = append(args, nil)
-		}
+		args = append(args, m.UpdatedAt)
 	}
 
 	qCols := strings.Join(cols, ", ")
@@ -301,6 +285,7 @@ func (repo *NetworkRepo) Insert(ctx context.Context, ms ...*Network) error {
 
 	_, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
+		// TODO: Check if this is the error is duplicate and return sentinel error.
 		return errors.Wrap(err, "exec context")
 	}
 
@@ -351,10 +336,12 @@ func (repo *NetworkRepo) Update(ctx context.Context, m *Network, skipZeroValues 
 	offset++
 
 	if skipZeroValues {
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colURI, offset))
-		args = append(args, m.URI)
+		if m.URI != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colURI, offset))
+			args = append(args, m.URI)
 
-		offset++
+			offset++
+		}
 
 		if m.Number != nil {
 			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colNumber, offset))
@@ -391,35 +378,36 @@ func (repo *NetworkRepo) Update(ctx context.Context, m *Network, skipZeroValues 
 			offset++
 		}
 	} else {
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colURI, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colURI, offset))
 		args = append(args, m.URI)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colNumber, offset))
-		args = append(args, m.Number)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colNumber, offset))
+		args = append(args, m.Number.Int64())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colTotal, offset))
-		args = append(args, m.Total)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colTotal, offset))
+		args = append(args, m.Total.Int64())
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colIP, offset))
-		args = append(args, m.IP)
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colIP, offset))
+		args = append(args, *m.IP)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
 		args = append(args, m.CreatedAt)
 
 		offset++
 
-		where = append(where, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
 		args = append(args, m.UpdatedAt)
 
 		offset++
+
 	}
 
 	qSets := strings.Join(sets, ", ")
@@ -440,6 +428,34 @@ func (repo *NetworkRepo) Update(ctx context.Context, m *Network, skipZeroValues 
 
 	if rowsAffected == 0 {
 		return ErrNetworkUpdate
+	}
+
+	return nil
+}
+
+// Delete deletes a Network.
+//
+// The Network must have the fields that are tag as "key" set.
+func (repo *NetworkRepo) Delete(ctx context.Context, m *Network) error {
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, 1))
+	args = append(args, m.ID)
+
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colToken, 2))
+	args = append(args, m.Token)
+
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "DELETE FROM %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qWhere)
+
+	_, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return errors.Wrap(err, "exec context")
 	}
 
 	return nil

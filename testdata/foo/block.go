@@ -11,7 +11,7 @@ import (
 
 type Block struct {
 	ID             uuid.UUID    `db:"id,key,auto" nil:"deps.IsUUIDZero"`
-	ChainID        deps.ChainID `db:"chain_id"`
+	ChainID        deps.ChainID `db:"chain_id" type:"int" value:"int" scan:"deps.ChainID"`
 	Hash           deps.Hash    `db:"hash,nullable" type:"string" value:".String" scan:"deps.HexToHash"`
 	Number         *big.Int     `db:"number" type:"int64" value:".Int64" scan:"big.NewInt"`
 	ParentHash     deps.Hash    `db:"parent_hash,nullable" type:"string" value:".String" scan:"deps.HexToHash"`

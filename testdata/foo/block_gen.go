@@ -20,10 +20,11 @@ var (
 	ErrBlockScan = errors.New("scan")
 	// ErrBlockNotFound is the error that indicates a Block was not found.
 	ErrBlockNotFound = errors.New("not found")
-	// ErrBlockUpdate is the error that indicates a Block was not updated.
-	ErrBlockUpdate = errors.New("update")
 	// ErrBlockExists is returned when the Block already exists.
 	ErrBlockExists = errors.New("exists")
+
+	// ErrBlockUpdate is the error that indicates a Block was not updated.
+	ErrBlockUpdate = errors.New("update")
 )
 
 // BlockRow is an interface for anything that can scan a Block, copying the columns from the matched

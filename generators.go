@@ -26,6 +26,8 @@ type Generator struct {
 	Imports map[string]PackageImport
 	Repo    Repo
 	Version string
+
+	Funcs []repoFunc
 }
 
 func Generate(sourcePath, outputPath string, model string, opts ...Option) error {
@@ -57,6 +59,7 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 		Imports: imports,
 		Repo:    r,
 		Version: version,
+		Funcs:   options.funcs,
 	}
 
 	// Populate the functions which should be exposed to the template.
@@ -81,6 +84,17 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 		"fieldToInsertSql": fieldToInsertSql(r),
 		"fieldToUpdateSql": fieldToUpdateSql(r),
 		"fieldValueMethod": fieldValueMethod,
+		"has": func(ls []repoFunc, c ...string) bool {
+			for _, v := range ls {
+				for _, s := range c {
+					if v.String() == s {
+						return true
+					}
+				}
+			}
+
+			return false
+		},
 	}
 
 	t, err := template.New(repoTplFilename).Funcs(funcMap).ParseFS(repoTpl, repoTplFilename)

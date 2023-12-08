@@ -20,10 +20,11 @@ var (
 	ErrSyncScan = errors.New("scan")
 	// ErrSyncNotFound is the error that indicates a Sync was not found.
 	ErrSyncNotFound = errors.New("not found")
-	// ErrSyncUpdate is the error that indicates a Sync was not updated.
-	ErrSyncUpdate = errors.New("update")
 	// ErrSyncExists is returned when the Sync already exists.
 	ErrSyncExists = errors.New("exists")
+
+	// ErrSyncUpdate is the error that indicates a Sync was not updated.
+	ErrSyncUpdate = errors.New("update")
 )
 
 // SyncRow is an interface for anything that can scan a Sync, copying the columns from the matched

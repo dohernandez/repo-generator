@@ -26,6 +26,10 @@ func TestGenerate_Block(t *testing.T) {
 			//"github.com/google/uuid",
 			"github.com/dohernandez/repo-generator/testdata/deps",
 		}),
+		generator.WithCreateFunc(),
+		generator.WithInsertFunc(),
+		generator.WithUpdateFunc(),
+		generator.WithDeleteFunc(),
 	)
 	require.NoError(t, err)
 }
@@ -39,6 +43,7 @@ func TestGenerate_Asset(t *testing.T) {
 			"github.com/dohernandez/repo-generator/testdata/deps",
 			"github.com/lib/pq",
 		}),
+		generator.WithCreateFunc(),
 	)
 	require.NoError(t, err)
 }
@@ -51,6 +56,7 @@ func TestGenerate_Transfer(t *testing.T) {
 		generator.WithImports([]string{
 			"github.com/dohernandez/repo-generator/testdata/deps",
 		}),
+		generator.WithCreateFunc(),
 	)
 	require.NoError(t, err)
 }
@@ -63,6 +69,8 @@ func TestGenerate_Cursor(t *testing.T) {
 		generator.WithImports([]string{
 			"github.com/google/uuid",
 		}),
+		generator.WithCreateFunc(),
+		generator.WithInsertFunc(),
 	)
 	require.NoError(t, err)
 }
@@ -75,6 +83,10 @@ func TestGenerate_Sync(t *testing.T) {
 		generator.WithImports([]string{
 			"github.com/dohernandez/repo-generator/testdata/deps",
 		}),
+		generator.WithCreateFunc(),
+		generator.WithInsertFunc(),
+		generator.WithUpdateFunc(),
+		generator.WithDeleteFunc(),
 	)
 	require.NoError(t, err)
 }

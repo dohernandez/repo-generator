@@ -1,15 +1,12 @@
 package generator
 
 import (
+	"go/ast"
+	"path"
 	"strings"
 
 	"github.com/dohernandez/errors"
 )
-
-var nativeImports = map[string]string{
-	"time": "time",
-	"big":  "math/big",
-}
 
 var defaultImports = map[string]string{
 	"errors":    "github.com/dohernandez/errors",
@@ -27,8 +24,39 @@ type PackageImport struct {
 	Path string
 }
 
-func parseImports(imports []string, r Repo) (map[string]PackageImport, error) {
-	pImports := make(map[string]PackageImport, len(imports)+1)
+func parseImports(tree *ast.File, r Repo) (map[string]PackageImport, error) {
+	mImports := make(map[string]PackageImport)
+
+	ast.Inspect(tree, func(n ast.Node) bool {
+		is, ok := n.(*ast.ImportSpec)
+		if !ok {
+			// We should recurse on any node higher-level than a TypeSpec.
+			// Invokes inspect f recursively
+			return true
+		}
+
+		ipath := is.Path.Value[1 : len(is.Path.Value)-1]
+
+		k := path.Base(ipath)
+
+		alias := ""
+
+		if is.Name != nil {
+			alias = is.Name.Name
+
+			k = alias
+		}
+
+		mImports[k] = PackageImport{
+			Path:  ipath,
+			Alias: alias,
+		}
+
+		// Inspect stop.
+		return false
+	})
+
+	pImports := make(map[string]PackageImport, len(defaultImports))
 
 	for k, i := range defaultImports {
 		pImports[k] = PackageImport{
@@ -36,51 +64,69 @@ func parseImports(imports []string, r Repo) (map[string]PackageImport, error) {
 		}
 	}
 
+	// TODO: test
+	// 1. arrayable, nullable, no scan method
+	// 2. package type (type is defined in another pkg), nullable, scan method
+	// 3. package type (type is defined in another pkg), nullable, nil method
+	// 4. package type (type is defined in another pkg), nullable, value method
+	// 5. package type (type is defined in another pkg), nullable, scan, nil, value method different pkg
+	// 6. package type (type is defined in another pkg), nullable, scan is type (pkg is _), nil, value method different pkg
 	for _, f := range r.Model.Fields {
-		if f.HasSqlNullable {
+		if !f.HasScanMethod && !f.HasValueMethod && !f.HasNilMethod {
 			continue
 		}
 
-		parts := strings.Split(f.Type, ".")
+		if f.HasSqlArrayable {
+			k := path.Base(arrayablePackageImport.Path)
 
-		if len(parts) <= 1 {
-			continue
+			pImports[k] = arrayablePackageImport
 		}
 
-		pkg := parts[0]
+		//parts := strings.Split(f.Type, ".")
 
-		path, ok := nativeImports[pkg]
-		if !ok {
-			continue
+		for t, fn := range map[string]Method{
+			"scan":  f.Scan,
+			"value": f.Value,
+			"nil":   f.Nil,
+		} {
+			var pkg string
+
+			if t == "scan" {
+				if fn.Pkg == "" {
+					continue
+				}
+
+				if fn.Pkg == "_" {
+					if f.IsNullable {
+						continue
+					}
+
+					parts := strings.Split(f.Type, ".")
+
+					if len(parts) <= 1 {
+						continue
+					}
+
+					pkg = parts[0]
+				} else {
+					pkg = fn.Pkg
+				}
+			} else {
+				if fn.Pkg == "" || fn.Pkg == "_" {
+					continue
+				}
+
+				pkg = fn.Pkg
+			}
+
+			mi, ok := mImports[pkg]
+			if !ok {
+				continue
+			}
+
+			pImports[fn.Pkg] = mi
 		}
 
-		if !f.HasScanMethod {
-			continue
-		}
-
-		pImports[pkg] = PackageImport{
-			Path: path,
-		}
-	}
-
-	for _, i := range imports {
-		parts := strings.Split(i, ":")
-
-		path := parts[len(parts)-1]
-
-		pkSplit := strings.Split(path, "/")
-		pk := pkSplit[len(pkSplit)-1]
-
-		var alias string
-
-		if len(parts) > 1 {
-			alias = parts[0]
-		}
-
-		pImports[pk] = PackageImport{
-			Alias: alias,
-			Path:  path,
-		}
 	}
 
 	// TODO: sort imports

@@ -1,14 +1,6 @@
 package generator
 
-import "github.com/dohernandez/errors"
-
 type Option func(*Options)
-
-func WithImports(imports []string) Option {
-	return func(opt *Options) {
-		opt.imports = imports
-	}
-}
 
 type repoFunc string
 
@@ -24,23 +16,6 @@ const (
 	updateFunc  repoFunc = "update"
 	deleteFunc  repoFunc = "delete"
 )
-
-func repoFuncFromString(s string) (repoFunc, error) {
-	switch s {
-	case scanFunc.String():
-		return scanFunc, nil
-	case scanAllFunc.String():
-		return scanAllFunc, nil
-	case createFunc.String():
-		return createFunc, nil
-	case insertFunc.String():
-		return insertFunc, nil
-	case deleteFunc.String():
-		return deleteFunc, nil
-	default:
-		return "", errors.New("")
-	}
-}
 
 func WithCreateFunc() Option {
 	return withFunc(createFunc)
@@ -65,6 +40,5 @@ func WithDeleteFunc() Option {
 }
 
 type Options struct {
-	imports []string
-	funcs   []repoFunc
+	funcs []repoFunc
 }

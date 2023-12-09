@@ -47,6 +47,8 @@ type NetworkRepo struct {
 	colTotal string
 	// colIP is the Network.IP column name. It can be used in a queries to specify the column.
 	colIP string
+	// colAddress is the Network.Address column name. It can be used in a queries to specify the column.
+	colAddress string
 	// colCreatedAt is the Network.CreatedAt column name. It can be used in a queries to specify the column.
 	colCreatedAt string
 	// colUpdatedAt is the Network.UpdatedAt column name. It can be used in a queries to specify the column.
@@ -65,6 +67,7 @@ func NewNetworkRepo(db *sql.DB, table string) *NetworkRepo {
 		colNumber:    "number",
 		colTotal:     "total",
 		colIP:        "ip",
+		colAddress:   "address",
 		colCreatedAt: "created_at",
 		colUpdatedAt: "updated_at",
 	}
@@ -75,10 +78,11 @@ func (repo *NetworkRepo) Scan(_ context.Context, s NetworkRow) (*Network, error)
 	var (
 		m Network
 
-		uRI    sql.NullString
-		number sql.NullInt64
-		total  int64
-		iP     string
+		uRI     sql.NullString
+		number  sql.NullInt64
+		total   int64
+		iP      string
+		address sql.NullString
 	)
 
 	err := s.Scan(
@@ -88,6 +92,7 @@ func (repo *NetworkRepo) Scan(_ context.Context, s NetworkRow) (*Network, error)
 		&number,
 		&total,
 		&iP,
+		&address,
 		&m.CreatedAt,
 		&m.UpdatedAt,
 	)
@@ -117,6 +122,10 @@ func (repo *NetworkRepo) Scan(_ context.Context, s NetworkRow) (*Network, error)
 
 	tmp := iP
 	m.IP = &tmp
+
+	if address.Valid {
+		m.Address = stringToAddress(address.String)
+	}
 
 	return &m, nil
 }

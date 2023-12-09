@@ -50,3 +50,7 @@ var sqlArrayable = map[string]sqlarrayable{
 	"string": "pq.StringArray",
 	"bool":   "pq.BoolArray",
 }
+
+var arrayablePackageImport = PackageImport{
+	Path: "github.com/lib/pq",
+}

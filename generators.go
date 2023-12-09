@@ -49,7 +49,7 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 		return errors.Wrap(err, "parse repo")
 	}
 
-	imports, err := parseImports(options.imports, r)
+	imports, err := parseImports(tree, r)
 	if err != nil {
 		return errors.Wrap(err, "parse package imports")
 	}

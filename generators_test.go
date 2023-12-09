@@ -22,10 +22,6 @@ func TestGenerate_Block(t *testing.T) {
 		"testdata/foo/block.go",
 		"testdata/foo/block_gen.go",
 		"Block",
-		generator.WithImports([]string{
-			//"github.com/google/uuid",
-			"github.com/dohernandez/repo-generator/testdata/deps",
-		}),
 		generator.WithCreateFunc(),
 		generator.WithInsertFunc(),
 		generator.WithUpdateFunc(),
@@ -39,10 +35,6 @@ func TestGenerate_Asset(t *testing.T) {
 		"testdata/foo/asset.go",
 		"testdata/foo/asset_gen.go",
 		"Asset",
-		generator.WithImports([]string{
-			"github.com/dohernandez/repo-generator/testdata/deps",
-			"github.com/lib/pq",
-		}),
 		generator.WithCreateFunc(),
 	)
 	require.NoError(t, err)
@@ -53,9 +45,6 @@ func TestGenerate_Transfer(t *testing.T) {
 		"testdata/foo/transfer.go",
 		"testdata/foo/transfer_gen.go",
 		"Transfer",
-		generator.WithImports([]string{
-			"github.com/dohernandez/repo-generator/testdata/deps",
-		}),
 		generator.WithCreateFunc(),
 	)
 	require.NoError(t, err)
@@ -66,9 +55,6 @@ func TestGenerate_Cursor(t *testing.T) {
 		"testdata/foo/cursor.go",
 		"testdata/foo/cursor_gen.go",
 		"Cursor",
-		generator.WithImports([]string{
-			"github.com/google/uuid",
-		}),
 		generator.WithCreateFunc(),
 		generator.WithInsertFunc(),
 	)
@@ -80,9 +66,6 @@ func TestGenerate_Sync(t *testing.T) {
 		"testdata/foo/sync.go",
 		"testdata/foo/sync_gen.go",
 		"Sync",
-		generator.WithImports([]string{
-			"github.com/dohernandez/repo-generator/testdata/deps",
-		}),
 		generator.WithCreateFunc(),
 		generator.WithInsertFunc(),
 		generator.WithUpdateFunc(),

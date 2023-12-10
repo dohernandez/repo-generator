@@ -10,7 +10,7 @@ import (
 
 type Cursor struct {
 	// ID is a unique identifier generated for each new Cursor, usually a UUID.
-	ID uuid.UUID `db:"id,key"`
+	ID uuid.UUID `db:"id,key,auto" nil:"deps.IsUUIDZero"`
 
 	// Name is a human-readable, unique identifier for each new Cursor. This should be descriptive and unique across all
 	// cursors in an Inbox.

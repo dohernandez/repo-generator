@@ -289,7 +289,17 @@ func fieldOmitEmpty(f Field, colName, value string, skipZeroValues bool, tmplFun
 	ifEmpty := ifEmptyStatement(f, value)
 
 	if ifEmpty == "" {
-		tmpl := tmplFunc()
+		var tmpl string
+
+		if f.IsKey {
+			tmpl = `
+			// TODO: For the correct operation of the code, the nil method must be implemented for %s.
+			// Define the method using the tag 'nil'.`
+
+			tmpl = fmt.Sprintf(tmpl, colName)
+		}
+
+		tmpl += tmplFunc()
 
 		return fmt.Sprintf(tmpl, colName, value)
 	}

@@ -56,7 +56,7 @@ func TestGenerate_Cursor(t *testing.T) {
 		"testdata/foo/cursor_gen.go",
 		"Cursor",
 		generator.WithCreateFunc(),
-		generator.WithInsertFunc(),
+		generator.WithUpdateFunc(),
 	)
 	require.NoError(t, err)
 }
@@ -70,6 +70,16 @@ func TestGenerate_Sync(t *testing.T) {
 		generator.WithInsertFunc(),
 		generator.WithUpdateFunc(),
 		generator.WithDeleteFunc(),
+	)
+	require.NoError(t, err)
+}
+
+func TestGenerate_Event(t *testing.T) {
+	err := generator.Generate(
+		"testdata/foo/event.go",
+		"testdata/foo/event_gen.go",
+		"Event",
+		generator.WithCreateFunc(),
 	)
 	require.NoError(t, err)
 }

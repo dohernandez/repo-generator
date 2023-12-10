@@ -21,6 +21,9 @@ var (
 	ErrCursorNotFound = errors.New("not found")
 	// ErrCursorExists is returned when the Cursor already exists.
 	ErrCursorExists = errors.New("exists")
+
+	// ErrCursorUpdate is the error that indicates a Cursor was not updated.
+	ErrCursorUpdate = errors.New("update")
 )
 
 // CursorRow is an interface for anything that can scan a Cursor, copying the columns from the matched
@@ -200,101 +203,117 @@ func (repo *CursorRepo) Create(ctx context.Context, m *Cursor) (*Cursor, error) 
 	return m, nil
 }
 
-// Insert inserts one or more Cursor records into the database.
+// Update updates a Cursor.
 //
-// When using this method the Cursor fields that are tag as "auto" should be set as the other fields non tag as "auto".
-// The same applies for those other fields that are tag as "omitempty".
-func (repo *CursorRepo) Insert(ctx context.Context, ms ...*Cursor) error {
-	// Build values query.
+// skipZeroValues indicates whether to skip zero values from the update statement.
+// In case of boolean fields, skipZeroValues is not applicable since false is the zero value of boolean and could be
+// a potential update. Always set this type of fields.
+//
+// Returns the error ErrCursorUpdate if the Cursor was not updated and database did not error,
+// otherwise database error.
+func (repo *CursorRepo) Update(ctx context.Context, m *Cursor, skipZeroValues bool) error {
 	var (
-		valuesQueryBuilder strings.Builder
-		lms                = len(ms)
+		sets   []string
+		where  []string
+		args   []interface{}
+		offset = 1
 	)
 
-	var cols []string
+	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, offset))
+	args = append(args, m.ID)
 
-	cols = append(cols, repo.colID)
-	cols = append(cols, repo.colName)
-	cols = append(cols, repo.colPosition)
-	cols = append(cols, repo.colLeader)
-	cols = append(cols, repo.colLeaderElectedAt)
-	cols = append(cols, repo.colCreatedAt)
-	cols = append(cols, repo.colUpdatedAt)
+	offset++
 
-	lcols := len(cols)
+	if skipZeroValues {
+		if m.Name != "" {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colName, offset))
+			args = append(args, m.Name)
 
-	// Size is equal to the number of models (lms) multiplied by the number of columns (lcols).
-	args := make([]interface{}, 0, lms*lcols)
-
-	for idx := range ms {
-		m := ms[idx]
-
-		indexOffset := idx * lcols
-
-		valuesQueryBuilder.WriteString(repo.valuesStatement(cols, indexOffset, idx != lms-1))
-
-		args = append(args, m.ID)
-
-		args = append(args, m.Name)
-
-		var position sql.NullString
-
-		position.String = m.Position.String()
-		position.Valid = true
-
-		args = append(args, position)
-
-		var leader sql.NullString
-
-		leader.String = m.Leader.String()
-		leader.Valid = true
-
-		args = append(args, leader)
-
-		var leaderElectedAt sql.NullTime
-
-		leaderElectedAt.Time = m.LeaderElectedAt
-		leaderElectedAt.Valid = true
-
-		args = append(args, leaderElectedAt)
-
-		args = append(args, m.CreatedAt)
-
-		args = append(args, m.UpdatedAt)
-	}
-
-	qCols := strings.Join(cols, ", ")
-
-	sql := "INSERT INTO %s (%s) VALUES %s"
-	sql = fmt.Sprintf(sql, repo.table, qCols, valuesQueryBuilder.String())
-
-	_, err := repo.db.ExecContext(ctx, sql, args...)
-	if err != nil {
-		var pgErr *pgconn.PgError
-
-		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
-			return errors.WrapError(err, ErrCursorExists)
+			offset++
 		}
 
-		return errors.Wrap(err, "exec context")
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colPosition, offset))
+		args = append(args, m.Position.String())
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeader, offset))
+		args = append(args, m.Leader.String())
+
+		offset++
+
+		if !m.LeaderElectedAt.IsZero() {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeaderElectedAt, offset))
+			args = append(args, m.LeaderElectedAt)
+
+			offset++
+		}
+
+		if !m.CreatedAt.IsZero() {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+			args = append(args, m.CreatedAt)
+
+			offset++
+		}
+
+		if !m.UpdatedAt.IsZero() {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
+			args = append(args, m.UpdatedAt)
+
+			offset++
+		}
+	} else {
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colName, offset))
+		args = append(args, m.Name)
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colPosition, offset))
+		args = append(args, m.Position.String())
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeader, offset))
+		args = append(args, m.Leader.String())
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeaderElectedAt, offset))
+		args = append(args, m.LeaderElectedAt)
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colCreatedAt, offset))
+		args = append(args, m.CreatedAt)
+
+		offset++
+
+		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colUpdatedAt, offset))
+		args = append(args, m.UpdatedAt)
+
+		offset++
+
+	}
+
+	qSets := strings.Join(sets, ", ")
+	qWhere := strings.Join(where, " AND ")
+
+	sql := "UPDATE %s SET %s WHERE %s"
+	sql = fmt.Sprintf(sql, repo.table, qSets, qWhere)
+
+	res, err := repo.db.ExecContext(ctx, sql, args...)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrCursorUpdate
 	}
 
 	return nil
-}
-
-// valuesStatement returns a string with the values statement ($n) for the given columns,
-// starting from the given offset.
-func (repo *CursorRepo) valuesStatement(cols []string, offset int, separator bool) string {
-	var sep string
-
-	if separator {
-		sep = ","
-	}
-
-	values := make([]string, len(cols))
-	for i := range cols {
-		values[i] = fmt.Sprintf("$%d", offset+(i+1))
-	}
-
-	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }

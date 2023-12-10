@@ -87,7 +87,7 @@ type CursorRepo struct {
 }
 
 // NewCursorRepo creates a new CursorRepo.
-func NewCursorRepo(db *sql.DB, table string) *CursorRepo {
+func NewCursorRepo(db CursorSQLDB, table string) *CursorRepo {
 	return &CursorRepo{
 		db:    db,
 		table: table,

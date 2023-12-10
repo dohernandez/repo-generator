@@ -85,7 +85,7 @@ type {{ $repo.Model.Name }}Repo struct {
 }
 
 // New{{ $repo.Model.Name }}Repo creates a new {{ $repo.Model.Name }}Repo.
-func New{{ $repo.Model.Name }}Repo(db *sql.DB, table string) *{{ $repo.Model.Name }}Repo {
+func New{{ $repo.Model.Name }}Repo(db {{ $repo.Model.Name }}SQLDB, table string) *{{ $repo.Model.Name }}Repo {
     return &{{ $repo.Model.Name }}Repo{
         db:    db,
         table: table,

@@ -36,6 +36,12 @@ type {{ $repo.Model.Name }}Row interface {
     Scan(dest ...any) error
 }
 
+// {{ $repo.Model.Name }}Criteria is a criteria for the select {{ $repo.Model.Name }}(s).
+//
+// {{ $repo.Model.Name }}Criteria is used to generate the where statement of the select. The order of the criteria items
+// matter during generation of the where statement.
+type {{ $repo.Model.Name }}Criteria map[string]any
+
 // {{ $repo.Model.Name }}Repo is a repository for the {{ $repo.Model.Name }}.
 type {{ $repo.Model.Name }}Repo struct {
     // db is the database connection.
@@ -132,6 +138,37 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) ScanAll(ctx context.Cont
     }
 
     return ms, nil
+}
+
+// Select selects a {{ $repo.Model.Name }} given {{ $repo.Model.Name }}Criteria.
+//
+// Returns the error Err{{ $repo.Model.Name }}NotFound if the {{ $repo.Model.Name }} was not found and database did not error,
+// otherwise database error.
+func (repo *CursorRepo) Select(ctx context.Context, criteria {{ $repo.Model.Name }}Criteria) (*Cursor, error) {
+    const q = "SELECT %s FROM %s WHERE %s"
+
+    var (
+        where []string
+        args  []interface{}
+    )
+
+    for k, v := range criteria {
+        where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
+        args = append(args, v)
+    }
+
+    cols := strings.Join([]string{
+    {{ range $i, $field := $repo.ColKeysFields }}
+        repo.col{{ $field.Name }},
+    {{- end }}
+    {{- range $i, $field := $repo.ColStatesFields }}
+        repo.col{{ $field.Name }},
+    {{- end -}}
+    }, ", ")
+
+    query := fmt.Sprintf(q, cols, repo.table, strings.Join(where, " AND "))
+
+    return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
 }
 
 {{ if has .Funcs "create" }}

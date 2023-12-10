@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/dohernandez/errors"
 	"github.com/google/uuid"
@@ -31,6 +32,12 @@ var (
 type CursorRow interface {
 	Scan(dest ...any) error
 }
+
+// CursorCriteria is a criteria for the select Cursor(s).
+//
+// CursorCriteria is used to generate the where statement of the select. The order of the criteria items
+// matter during generation of the where statement.
+type CursorCriteria map[string]any
 
 // CursorRepo is a repository for the Cursor.
 type CursorRepo struct {
@@ -80,6 +87,8 @@ func (repo *CursorRepo) Scan(_ context.Context, s CursorRow) (*Cursor, error) {
 		position        sql.NullString
 		leader          sql.NullString
 		leaderElectedAt sql.NullTime
+		createdAt       time.Time
+		updatedAt       time.Time
 	)
 
 	err := s.Scan(
@@ -88,8 +97,8 @@ func (repo *CursorRepo) Scan(_ context.Context, s CursorRow) (*Cursor, error) {
 		&position,
 		&leader,
 		&leaderElectedAt,
-		&m.CreatedAt,
-		&m.UpdatedAt,
+		&createdAt,
+		&updatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -114,8 +123,11 @@ func (repo *CursorRepo) Scan(_ context.Context, s CursorRow) (*Cursor, error) {
 	}
 
 	if leaderElectedAt.Valid {
-		m.LeaderElectedAt = leaderElectedAt.Time
+		m.LeaderElectedAt = leaderElectedAt.Time.UTC()
 	}
+
+	m.CreatedAt = createdAt.UTC()
+	m.UpdatedAt = updatedAt.UTC()
 
 	return &m, nil
 }
@@ -138,6 +150,37 @@ func (repo *CursorRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Cursor, e
 	}
 
 	return ms, nil
+}
+
+// Select selects a Cursor given CursorCriteria.
+//
+// Returns the error ErrCursorNotFound if the Cursor was not found and database did not error,
+// otherwise database error.
+func (repo *CursorRepo) Select(ctx context.Context, criteria CursorCriteria) (*Cursor, error) {
+	const q = "SELECT %s FROM %s WHERE %s"
+
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	for k, v := range criteria {
+		where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
+		args = append(args, v)
+	}
+
+	cols := strings.Join([]string{
+		repo.colID,
+		repo.colName,
+		repo.colPosition,
+		repo.colLeader,
+		repo.colLeaderElectedAt,
+		repo.colCreatedAt,
+		repo.colUpdatedAt}, ", ")
+
+	query := fmt.Sprintf(q, cols, repo.table, strings.Join(where, " AND "))
+
+	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
 }
 
 // Create creates a new Cursor and returns it after persisting.

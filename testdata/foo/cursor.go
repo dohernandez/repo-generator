@@ -26,7 +26,7 @@ type Cursor struct {
 
 	// LeaderElectedAt is a timestamp which indicates when the current leader was elected. This will be empty if a
 	// leader has never been elected.
-	LeaderElectedAt time.Time `db:"leader_elected_at,nullable"`
-	CreatedAt       time.Time `db:"created_at"`
-	UpdatedAt       time.Time `db:"updated_at"`
+	LeaderElectedAt time.Time `db:"leader_elected_at,nullable" scan:".UTC"`
+	CreatedAt       time.Time `db:"created_at" scan:".UTC"`
+	UpdatedAt       time.Time `db:"updated_at" scan:".UTC"`
 }

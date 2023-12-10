@@ -311,6 +311,21 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) valuesStatement(cols []s
 {{ end }}
 
 {{ if has .Funcs "update" }}
+// Update{{ $repo.Model.Name }}Options is a type for specifying options when updating a {{ $repo.Model.Name }}.
+type Update{{ $repo.Model.Name }}Options func(*update{{ $repo.Model.Name }}Options)
+
+type update{{ $repo.Model.Name }}Options struct {
+    // skipZeroValues indicates whether to skip zero values from the update statement.
+    skipZeroValues bool
+}
+
+// Skip{{ $repo.Model.Name }}ZeroValues is an option for Update that indicates whether to skip zero values from the update statement.
+func Skip{{ $repo.Model.Name }}ZeroValues() Update{{ $repo.Model.Name }}Options {
+    return func(o *update{{ $repo.Model.Name }}Options) {
+        o.skipZeroValues = true
+    }
+}
+
 // Update updates a {{ $repo.Model.Name }}.
 //
 // skipZeroValues indicates whether to skip zero values from the update statement.
@@ -319,13 +334,25 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) valuesStatement(cols []s
 //
 // Returns the error Err{{ $repo.Model.Name }}Update if the {{ $repo.Model.Name }} was not updated and database did not error,
 // otherwise database error.
-func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Context, m *{{ $repo.Model.Name }}, skipZeroValues bool) error {
+func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Context, m *{{ $repo.Model.Name }}, opts ...Update{{ $repo.Model.Name }}Options) error {
+    var uOpts updateCursorOptions
+
+    for _, opt := range opts {
+        opt(&uOpts)
+    }
+
     var (
         sets   []string
         where  []string
         args   []interface{}
         offset = 1
     )
+
+{{/*    {{ range $i, $field := $repo.ColKeysFields }}*/}}
+{{/*        if !deps.IsUUIDZero(m.ID) {*/}}
+{{/*            return errors.Wrapf(ErrCursorUpdate, "id is zero or nil")*/}}
+{{/*        }*/}}
+{{/*    {{ end }}*/}}
 
     {{ range $i, $field := $repo.ColKeysFields }}
         where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, offset))
@@ -334,7 +361,7 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
         offset++
     {{ end }}
 
-    if skipZeroValues {
+    if uOpts.skipZeroValues {
         {{- range $i, $field := $repo.ColStatesFields -}}
             {{ fieldToUpdateSql $field true }}
         {{ end -}}
@@ -352,12 +379,12 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
 
     res, err := repo.db.ExecContext(ctx, sql, args...)
     if err != nil {
-        return err
+        return errors.WrapError(err, Err{{ $repo.Model.Name }}Update)
     }
 
     rowsAffected, err := res.RowsAffected()
     if err != nil {
-        return err
+        return errors.WrapError(err, Err{{ $repo.Model.Name }}Update)
     }
 
     if rowsAffected == 0 {

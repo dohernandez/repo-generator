@@ -7,10 +7,8 @@ package {{.Package}}
 import (
     "context"
     "database/sql"
-    {{ if has .Funcs "create" "update" "delete" }}
     "fmt"
     "strings"
-    {{ end }}
 
     {{- range $i, $field := .Imports }}
     "{{ $field.Path }}"
@@ -60,10 +58,18 @@ func (c {{ $repo.Model.Name }}Criteria) toSql() (string, []interface{}) {
     return strings.Join(where, " AND "), args
 }
 
+// {{ $repo.Model.Name }}SQLDB is an interface for anything that can execute the SQL statements needed to
+// perform the {{ $repo.Model.Name }} operations.
+type {{ $repo.Model.Name }}SQLDB interface {
+    QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+    QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+    ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+}
+
 // {{ $repo.Model.Name }}Repo is a repository for the {{ $repo.Model.Name }}.
 type {{ $repo.Model.Name }}Repo struct {
     // db is the database connection.
-    db    *sql.DB
+    db    {{ $repo.Model.Name }}SQLDB
 
     // table is the table name.
     table string

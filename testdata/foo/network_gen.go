@@ -5,7 +5,9 @@ package foo
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/dohernandez/errors"
 	"github.com/jackc/pgerrcode"
@@ -27,10 +29,38 @@ type NetworkRow interface {
 	Scan(dest ...any) error
 }
 
+// NetworkCriteria is a criteria for the select Network(s).
+//
+// NetworkCriteria is used to generate the where statement of the select. The order of the criteria items
+// matter during generation of the where statement.
+type NetworkCriteria map[string]any
+
+func (c NetworkCriteria) toSql() (string, []interface{}) {
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	for k, v := range c {
+		where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
+		args = append(args, v)
+	}
+
+	return strings.Join(where, " AND "), args
+}
+
+// NetworkSQLDB is an interface for anything that can execute the SQL statements needed to
+// perform the Network operations.
+type NetworkSQLDB interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+}
+
 // NetworkRepo is a repository for the Network.
 type NetworkRepo struct {
 	// db is the database connection.
-	db *sql.DB
+	db NetworkSQLDB
 
 	// table is the table name.
 	table string
@@ -148,4 +178,29 @@ func (repo *NetworkRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Network,
 	}
 
 	return ms, nil
+}
+
+// Select selects a Network given NetworkCriteria.
+//
+// Returns the error ErrNetworkNotFound if the Network was not found and database did not error,
+// otherwise database error.
+func (repo *NetworkRepo) Select(ctx context.Context, criteria NetworkCriteria) (*Network, error) {
+	const q = "SELECT %s FROM %s WHERE %s"
+
+	where, args := criteria.toSql()
+
+	cols := strings.Join([]string{
+		repo.colID,
+		repo.colToken,
+		repo.colURI,
+		repo.colNumber,
+		repo.colTotal,
+		repo.colIP,
+		repo.colAddress,
+		repo.colCreatedAt,
+		repo.colUpdatedAt}, ", ")
+
+	query := fmt.Sprintf(q, cols, repo.table, where)
+
+	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
 }

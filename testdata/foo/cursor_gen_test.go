@@ -28,7 +28,7 @@ func TestCursorRepo_Create(t *testing.T) {
 		repo := foo.NewCursorRepo(conn, cursorTable)
 
 		id := uuid.New()
-		now := time.Now()
+		now := time.Now().UTC()
 
 		c, err := repo.Create(ctx, &foo.Cursor{
 			ID:        id,

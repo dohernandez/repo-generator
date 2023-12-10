@@ -96,6 +96,9 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 
 			return false
 		},
+		"equals": func(a, b string) bool {
+			return a == b
+		},
 	}
 
 	t, err := template.New(repoTplFilename).Funcs(funcMap).ParseFS(repoTpl, repoTplFilename)

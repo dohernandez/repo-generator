@@ -54,10 +54,18 @@ func (c CursorCriteria) toSql() (string, []interface{}) {
 	return strings.Join(where, " AND "), args
 }
 
+// CursorSQLDB is an interface for anything that can execute the SQL statements needed to
+// perform the Cursor operations.
+type CursorSQLDB interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+}
+
 // CursorRepo is a repository for the Cursor.
 type CursorRepo struct {
 	// db is the database connection.
-	db *sql.DB
+	db CursorSQLDB
 
 	// table is the table name.
 	table string

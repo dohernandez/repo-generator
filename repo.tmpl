@@ -28,6 +28,10 @@ var (
     // Err{{ $repo.Model.Name }}Update is the error that indicates a {{ $repo.Model.Name }} was not updated.
     Err{{ $repo.Model.Name }}Update = errors.New("update")
     {{- end -}}
+    {{ if has .Funcs "delete" }}
+    // Err{{ $repo.Model.Name }}Delete is the error that indicates a {{ $repo.Model.Name }} was not deleted.
+    Err{{ $repo.Model.Name }}Delete = errors.New("delete")
+    {{- end -}}
 )
 
 // {{ $repo.Model.Name }}Row is an interface for anything that can scan a {{ $repo.Model.Name }}, copying the columns from the matched
@@ -158,7 +162,7 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) ScanAll(ctx context.Cont
 //
 // Returns the error Err{{ $repo.Model.Name }}NotFound if the {{ $repo.Model.Name }} was not found and database did not error,
 // otherwise database error.
-func (repo *CursorRepo) Select(ctx context.Context, criteria {{ $repo.Model.Name }}Criteria) (*Cursor, error) {
+func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Select(ctx context.Context, criteria {{ $repo.Model.Name }}Criteria) (*{{ $repo.Model.Name }}, error) {
     const q = "SELECT %s FROM %s WHERE %s"
 
     where, args := criteria.toSql()
@@ -335,7 +339,7 @@ func Skip{{ $repo.Model.Name }}ZeroValues() Update{{ $repo.Model.Name }}Options 
 // Returns the error Err{{ $repo.Model.Name }}Update if the {{ $repo.Model.Name }} was not updated and database did not error,
 // otherwise database error.
 func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Context, m *{{ $repo.Model.Name }}, opts ...Update{{ $repo.Model.Name }}Options) error {
-    var uOpts updateCursorOptions
+    var uOpts update{{ $repo.Model.Name }}Options
 
     for _, opt := range opts {
         opt(&uOpts)
@@ -348,11 +352,9 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
         offset = 1
     )
 
-{{/*    {{ range $i, $field := $repo.ColKeysFields }}*/}}
-{{/*        if !deps.IsUUIDZero(m.ID) {*/}}
-{{/*            return errors.Wrapf(ErrCursorUpdate, "id is zero or nil")*/}}
-{{/*        }*/}}
-{{/*    {{ end }}*/}}
+    {{ range $i, $field := $repo.ColKeysFields }}
+        {{ fieldToRequire $field "Update" }}
+    {{ end }}
 
     {{ range $i, $field := $repo.ColKeysFields }}
         where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, offset))
@@ -405,6 +407,10 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Delete(ctx context.Conte
         where []string
         args  []interface{}
     )
+
+    {{ range $i, $field := $repo.ColKeysFields }}
+        {{ fieldToRequire $field "Delete" }}
+    {{ end }}
 
     {{ range $i, $field := $repo.ColKeysFields }}
         where = append(where, fmt.Sprintf("%s = $%d", {{ $repo.Receiver }}.col{{ $field.Name }}, {{ inc $i }}))

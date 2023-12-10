@@ -31,16 +31,18 @@ func (o MethodCmpOperator) String() string {
 }
 
 const (
+	MethodCmpOperatorEqual    MethodCmpOperator = "=="
 	MethodCmpOperatorNotEqual MethodCmpOperator = "!="
 	MethodCmpOperatorNot      MethodCmpOperator = "!"
 	MethodCmpOperatorGreater  MethodCmpOperator = ">"
 )
 
 type Method struct {
-	Name        string
-	Pkg         string
-	CmpOperator MethodCmpOperator
-	EmptyValue  string
+	Name                string
+	Pkg                 string
+	NotEqualCmpOperator MethodCmpOperator
+	EqualCmpOperator    MethodCmpOperator
+	EmptyValue          string
 }
 
 // Field describes a field within a builder struct.
@@ -384,16 +386,17 @@ func parseTagNil(field *ast.Field, fType, sType string, isArray, hasValueMethod 
 	nMethod := parseTagMethod(field, columnNilTag)
 
 	if nMethod != (Method{}) {
-		nMethod.CmpOperator = MethodCmpOperatorNot
+		nMethod.NotEqualCmpOperator = MethodCmpOperatorNot
 
 		return nMethod
 	}
 
 	if isArray {
 		return Method{
-			Name:        "len",
-			CmpOperator: MethodCmpOperatorGreater,
-			EmptyValue:  "0",
+			Name:                "len",
+			NotEqualCmpOperator: MethodCmpOperatorGreater,
+			EqualCmpOperator:    MethodCmpOperatorEqual,
+			EmptyValue:          "0",
 		}
 	}
 
@@ -406,19 +409,21 @@ func parseTagNil(field *ast.Field, fType, sType string, isArray, hasValueMethod 
 	switch fType {
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "float32", "float64":
 		nMethod = Method{
-			CmpOperator: MethodCmpOperatorNotEqual,
-			EmptyValue:  "0",
+			NotEqualCmpOperator: MethodCmpOperatorNotEqual,
+			EqualCmpOperator:    MethodCmpOperatorEqual,
+			EmptyValue:          "0",
 		}
 	case "time.Time":
 		nMethod = Method{
-			Name:        "IsZero",
-			Pkg:         "_",
-			CmpOperator: MethodCmpOperatorNot,
+			Name:                "IsZero",
+			Pkg:                 "_",
+			NotEqualCmpOperator: MethodCmpOperatorNot,
 		}
 	case "string":
 		nMethod = Method{
-			CmpOperator: MethodCmpOperatorNotEqual,
-			EmptyValue:  "\"\"",
+			NotEqualCmpOperator: MethodCmpOperatorNotEqual,
+			EqualCmpOperator:    MethodCmpOperatorEqual,
+			EmptyValue:          "\"\"",
 		}
 	}
 

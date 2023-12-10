@@ -83,6 +83,7 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 		"sqlToField":       sqlToField(r),
 		"fieldToInsertSql": fieldToInsertSql(r),
 		"fieldToUpdateSql": fieldToUpdateSql(r),
+		"fieldToRequire":   fieldToRequire(r),
 		"fieldValueMethod": fieldValueMethod,
 		"has": func(ls []repoFunc, c ...string) bool {
 			for _, v := range ls {
@@ -286,9 +287,9 @@ func fieldOmitEmpty(f Field, colName, value string, skipZeroValues bool, tmplFun
 		return fmt.Sprintf(tmpl, colName, value)
 	}
 
-	ifEmpty := ifEmptyStatement(f, value)
+	ifNotEmpty := ifEmptyStatement(f, value, false)
 
-	if ifEmpty == "" {
+	if ifNotEmpty == "" {
 		var tmpl string
 
 		if f.IsKey {
@@ -309,11 +310,15 @@ func fieldOmitEmpty(f Field, colName, value string, skipZeroValues bool, tmplFun
 		tmplFunc() +
 		`}`
 
-	return fmt.Sprintf(tmpl, colName, value, ifEmpty)
+	return fmt.Sprintf(tmpl, colName, value, ifNotEmpty)
 }
 
-func ifEmptyStatement(f Field, value string) string {
+func ifEmptyStatement(f Field, value string, equals bool) string {
 	if f.IsPointer {
+		if equals {
+			return fmt.Sprintf("m.%s == nil", f.Name)
+		}
+
 		return fmt.Sprintf("m.%s != nil", f.Name)
 	}
 
@@ -327,16 +332,20 @@ func ifEmptyStatement(f Field, value string) string {
 		tmpl = value
 	}
 
-	switch f.Nil.CmpOperator {
+	if equals {
+		return f.Nil.EqualCmpOperator.String() + tmpl
+	}
+
+	switch f.Nil.NotEqualCmpOperator {
 	case MethodCmpOperatorNotEqual, MethodCmpOperatorGreater:
 		return fmt.Sprintf(
 			"%s %s %s",
 			tmpl,
-			f.Nil.CmpOperator.String(),
+			f.Nil.NotEqualCmpOperator.String(),
 			f.Nil.EmptyValue,
 		)
 	case MethodCmpOperatorNot:
-		return f.Nil.CmpOperator.String() + tmpl
+		return f.Nil.NotEqualCmpOperator.String() + tmpl
 	}
 
 	return "operator not implemented"
@@ -348,9 +357,9 @@ func fieldOmitEmptyNullable(f Field, colName, value string) string {
 	}
 
 	tnullable := fmt.Sprintf("%s.%s", f.LowerCaseName, f.SqlNullable.set)
-	ifEmpty := ifEmptyStatement(f, value)
+	ifNotEmpty := ifEmptyStatement(f, value, false)
 
-	if ifEmpty == "" {
+	if ifNotEmpty == "" {
 		if f.HasSqlNullable {
 			tmpl := `
 				var %[1]s %[2]s
@@ -381,7 +390,7 @@ func fieldOmitEmptyNullable(f Field, colName, value string) string {
 			}
 			`
 
-		return fmt.Sprintf(tmpl, ifEmpty, colName, value)
+		return fmt.Sprintf(tmpl, ifNotEmpty, colName, value)
 	}
 
 	tmpl := `
@@ -395,7 +404,7 @@ func fieldOmitEmptyNullable(f Field, colName, value string) string {
 			args = append(args, %[2]s)
 		}
 			`
-	return fmt.Sprintf(tmpl, ifEmpty, f.LowerCaseName, f.SqlType, tnullable, value, colName)
+	return fmt.Sprintf(tmpl, ifNotEmpty, f.LowerCaseName, f.SqlType, tnullable, value, colName)
 }
 
 func fieldType(_ Repo) func(f any) string {
@@ -663,5 +672,29 @@ func fieldToUpdateSql(repo Repo) func(f Field, b bool) string {
 				offset++
 			`
 		})
+	}
+}
+
+func fieldToRequire(repo Repo) func(f Field, fn string) string {
+	return func(f Field, fn string) string {
+		colName := fmt.Sprintf("%s.col%s", repo.Receiver, f.Name)
+		value := fieldValueMethod(f, fmt.Sprintf("m.%s", f.Name))
+
+		ifEmpty := ifEmptyStatement(f, value, true)
+
+		if ifEmpty == "" {
+			tmpl := `
+			// TODO: For the correct operation of the code, the nil method must be implemented for %s.
+			// Define the method using the tag 'nil'.`
+
+			return fmt.Sprintf(tmpl, colName)
+		}
+
+		tmpl := `
+			if %[1]s {
+				return errors.Wrapf(Err%[2]s%[3]s, "field %[4]s is required")
+			}`
+
+		return fmt.Sprintf(tmpl, ifEmpty, repo.Model.Name, fn, f.Name)
 	}
 }

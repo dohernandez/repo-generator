@@ -300,6 +300,10 @@ func (repo *CursorRepo) Update(ctx context.Context, m *Cursor, opts ...UpdateCur
 		offset = 1
 	)
 
+	if deps.IsUUIDZero(m.ID) {
+		return errors.Wrapf(ErrCursorUpdate, "field ID is required")
+	}
+
 	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, offset))
 	args = append(args, m.ID)
 

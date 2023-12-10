@@ -25,12 +25,34 @@ var (
 
 	// ErrSyncUpdate is the error that indicates a Sync was not updated.
 	ErrSyncUpdate = errors.New("update")
+	// ErrSyncDelete is the error that indicates a Sync was not deleted.
+	ErrSyncDelete = errors.New("delete")
 )
 
 // SyncRow is an interface for anything that can scan a Sync, copying the columns from the matched
 // row into the values pointed at by dest.
 type SyncRow interface {
 	Scan(dest ...any) error
+}
+
+// SyncCriteria is a criteria for the select Sync(s).
+//
+// SyncCriteria is used to generate the where statement of the select. The order of the criteria items
+// matter during generation of the where statement.
+type SyncCriteria map[string]any
+
+func (c SyncCriteria) toSql() (string, []interface{}) {
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	for k, v := range c {
+		where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
+		args = append(args, v)
+	}
+
+	return strings.Join(where, " AND "), args
 }
 
 // SyncRepo is a repository for the Sync.
@@ -195,6 +217,36 @@ func (repo *SyncRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Sync, error
 	}
 
 	return ms, nil
+}
+
+// Select selects a Sync given SyncCriteria.
+//
+// Returns the error ErrSyncNotFound if the Sync was not found and database did not error,
+// otherwise database error.
+func (repo *SyncRepo) Select(ctx context.Context, criteria SyncCriteria) (*Sync, error) {
+	const q = "SELECT %s FROM %s WHERE %s"
+
+	where, args := criteria.toSql()
+
+	cols := strings.Join([]string{
+		repo.colID,
+		repo.colState,
+		repo.colChainID,
+		repo.colBlockNumber,
+		repo.colBlockHash,
+		repo.colParentHash,
+		repo.colBlockTimestamp,
+		repo.colBlockHeaderPath,
+		repo.colTransactionsPath,
+		repo.colReceiptsPath,
+		repo.colLogsPath,
+		repo.colTracesPath,
+		repo.colCreatedAt,
+		repo.colUpdatedAt}, ", ")
+
+	query := fmt.Sprintf(q, cols, repo.table, where)
+
+	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
 }
 
 // Create creates a new Sync and returns the persisted Sync.
@@ -472,6 +524,21 @@ func (repo *SyncRepo) valuesStatement(cols []string, offset int, separator bool)
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }
 
+// UpdateSyncOptions is a type for specifying options when updating a Sync.
+type UpdateSyncOptions func(*updateSyncOptions)
+
+type updateSyncOptions struct {
+	// skipZeroValues indicates whether to skip zero values from the update statement.
+	skipZeroValues bool
+}
+
+// SkipSyncZeroValues is an option for Update that indicates whether to skip zero values from the update statement.
+func SkipSyncZeroValues() UpdateSyncOptions {
+	return func(o *updateSyncOptions) {
+		o.skipZeroValues = true
+	}
+}
+
 // Update updates a Sync.
 //
 // skipZeroValues indicates whether to skip zero values from the update statement.
@@ -480,7 +547,13 @@ func (repo *SyncRepo) valuesStatement(cols []string, offset int, separator bool)
 //
 // Returns the error ErrSyncUpdate if the Sync was not updated and database did not error,
 // otherwise database error.
-func (repo *SyncRepo) Update(ctx context.Context, m *Sync, skipZeroValues bool) error {
+func (repo *SyncRepo) Update(ctx context.Context, m *Sync, opts ...UpdateSyncOptions) error {
+	var uOpts updateSyncOptions
+
+	for _, opt := range opts {
+		opt(&uOpts)
+	}
+
 	var (
 		sets   []string
 		where  []string
@@ -488,12 +561,16 @@ func (repo *SyncRepo) Update(ctx context.Context, m *Sync, skipZeroValues bool) 
 		offset = 1
 	)
 
+	if deps.IsUUIDZero(m.ID) {
+		return errors.Wrapf(ErrSyncUpdate, "field ID is required")
+	}
+
 	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, offset))
 	args = append(args, m.ID)
 
 	offset++
 
-	if skipZeroValues {
+	if uOpts.skipZeroValues {
 		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colState, offset))
 		args = append(args, m.State)
 
@@ -652,12 +729,12 @@ func (repo *SyncRepo) Update(ctx context.Context, m *Sync, skipZeroValues bool) 
 
 	res, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		return err
+		return errors.WrapError(err, ErrSyncUpdate)
 	}
 
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return errors.WrapError(err, ErrSyncUpdate)
 	}
 
 	if rowsAffected == 0 {
@@ -675,6 +752,10 @@ func (repo *SyncRepo) Delete(ctx context.Context, m *Sync) error {
 		where []string
 		args  []interface{}
 	)
+
+	if deps.IsUUIDZero(m.ID) {
+		return errors.Wrapf(ErrSyncDelete, "field ID is required")
+	}
 
 	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, 1))
 	args = append(args, m.ID)

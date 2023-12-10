@@ -450,6 +450,10 @@ func scanField(_ Repo) func(f any) string {
 			return fmt.Sprintf("&%s", fd.LowerCaseName)
 		}
 
+		if fd.HasScanMethod {
+			return fmt.Sprintf("&%s", fd.LowerCaseName)
+		}
+
 		return fmt.Sprintf("&m.%s", fd.Name)
 	}
 }

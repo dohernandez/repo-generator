@@ -41,7 +41,7 @@ func parseImports(tree *ast.File, r Repo) (map[string]PackageImport, error) {
 
 		alias := ""
 
-		if is.Name != nil {
+		if is.Name != nil && is.Name.Name != "_" {
 			alias = is.Name.Name
 
 			k = alias

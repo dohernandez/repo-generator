@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	_ "github.com/dohernandez/repo-generator/testdata/deps"
 )
 
 type Cursor struct {
@@ -16,13 +18,13 @@ type Cursor struct {
 
 	// Position is a foreign-key which refers to the ID of the last event which was successfully processed by a
 	// Consumer.
-	Position uuid.UUID `db:"position,nullable" type:"string" value:".String" scan:"uuid.MustParse"`
+	Position uuid.UUID `db:"position,nullable" type:"string" nil:"deps.IsUUIDZero" value:".String" scan:"uuid.MustParse"`
 
 	// Leader is a unique identifier of a Subscriber which is deemed the "leader" of the group. Only subscribers which
 	// carry this identifier will establish event streams.
 	//
 	// This is not a mandatory field and is only set if leader election is enabled for a SubscriberGroup.
-	Leader uuid.UUID `db:"leader,nullable" type:"string" value:".String" scan:"uuid.MustParse"`
+	Leader uuid.UUID `db:"leader,nullable" type:"string" nil:"deps.IsUUIDZero" value:".String" scan:"uuid.MustParse"`
 
 	// LeaderElectedAt is a timestamp which indicates when the current leader was elected. This will be empty if a
 	// leader has never been elected.

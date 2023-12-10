@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dohernandez/errors"
+	"github.com/dohernandez/repo-generator/testdata/deps"
 	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -38,6 +39,20 @@ type CursorRow interface {
 // CursorCriteria is used to generate the where statement of the select. The order of the criteria items
 // matter during generation of the where statement.
 type CursorCriteria map[string]any
+
+func (c CursorCriteria) toSql() (string, []interface{}) {
+	var (
+		where []string
+		args  []interface{}
+	)
+
+	for k, v := range c {
+		where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
+		args = append(args, v)
+	}
+
+	return strings.Join(where, " AND "), args
+}
 
 // CursorRepo is a repository for the Cursor.
 type CursorRepo struct {
@@ -159,15 +174,7 @@ func (repo *CursorRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Cursor, e
 func (repo *CursorRepo) Select(ctx context.Context, criteria CursorCriteria) (*Cursor, error) {
 	const q = "SELECT %s FROM %s WHERE %s"
 
-	var (
-		where []string
-		args  []interface{}
-	)
-
-	for k, v := range criteria {
-		where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
-		args = append(args, v)
-	}
+	where, args := criteria.toSql()
 
 	cols := strings.Join([]string{
 		repo.colID,
@@ -178,7 +185,7 @@ func (repo *CursorRepo) Select(ctx context.Context, criteria CursorCriteria) (*C
 		repo.colCreatedAt,
 		repo.colUpdatedAt}, ", ")
 
-	query := fmt.Sprintf(q, cols, repo.table, strings.Join(where, " AND "))
+	query := fmt.Sprintf(q, cols, repo.table, where)
 
 	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
 }
@@ -275,15 +282,19 @@ func (repo *CursorRepo) Update(ctx context.Context, m *Cursor, skipZeroValues bo
 			offset++
 		}
 
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colPosition, offset))
-		args = append(args, m.Position.String())
+		if !deps.IsUUIDZero(m.Position) {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colPosition, offset))
+			args = append(args, m.Position.String())
 
-		offset++
+			offset++
+		}
 
-		sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeader, offset))
-		args = append(args, m.Leader.String())
+		if !deps.IsUUIDZero(m.Leader) {
+			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeader, offset))
+			args = append(args, m.Leader.String())
 
-		offset++
+			offset++
+		}
 
 		if !m.LeaderElectedAt.IsZero() {
 			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colLeaderElectedAt, offset))

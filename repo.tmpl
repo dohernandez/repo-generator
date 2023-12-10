@@ -42,6 +42,20 @@ type {{ $repo.Model.Name }}Row interface {
 // matter during generation of the where statement.
 type {{ $repo.Model.Name }}Criteria map[string]any
 
+func (c {{ $repo.Model.Name }}Criteria) toSql() (string, []interface{}) {
+    var (
+        where []string
+        args  []interface{}
+    )
+
+    for k, v := range c {
+        where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
+        args = append(args, v)
+    }
+
+    return strings.Join(where, " AND "), args
+}
+
 // {{ $repo.Model.Name }}Repo is a repository for the {{ $repo.Model.Name }}.
 type {{ $repo.Model.Name }}Repo struct {
     // db is the database connection.
@@ -147,15 +161,7 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) ScanAll(ctx context.Cont
 func (repo *CursorRepo) Select(ctx context.Context, criteria {{ $repo.Model.Name }}Criteria) (*Cursor, error) {
     const q = "SELECT %s FROM %s WHERE %s"
 
-    var (
-        where []string
-        args  []interface{}
-    )
-
-    for k, v := range criteria {
-        where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
-        args = append(args, v)
-    }
+    where, args := criteria.toSql()
 
     cols := strings.Join([]string{
     {{ range $i, $field := $repo.ColKeysFields }}
@@ -166,7 +172,7 @@ func (repo *CursorRepo) Select(ctx context.Context, criteria {{ $repo.Model.Name
     {{- end -}}
     }, ", ")
 
-    query := fmt.Sprintf(q, cols, repo.table, strings.Join(where, " AND "))
+    query := fmt.Sprintf(q, cols, repo.table, where)
 
     return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
 }

@@ -86,7 +86,7 @@ type NetworkRepo struct {
 }
 
 // NewNetworkRepo creates a new NetworkRepo.
-func NewNetworkRepo(db *sql.DB, table string) *NetworkRepo {
+func NewNetworkRepo(db NetworkSQLDB, table string) *NetworkRepo {
 	return &NetworkRepo{
 		db:    db,
 		table: table,

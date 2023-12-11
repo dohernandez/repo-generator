@@ -81,6 +81,11 @@ func NewNetworkRepo(db NetworkSQLDB, table string) *NetworkRepo {
 	}
 }
 
+// Table returns the table name.
+func (repo *NetworkRepo) Table() string {
+	return repo.table
+}
+
 // Cols returns the represented cols of Network.
 // Cols are returned in the order they are scanned.
 func (repo *NetworkRepo) Cols() []string {

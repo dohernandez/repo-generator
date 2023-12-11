@@ -82,6 +82,11 @@ func New{{ $repo.Model.Name }}Repo(db {{ $repo.Model.Name }}SQLDB, table string)
     }
 }
 
+// Table returns the table name.
+func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Table() string {
+    return {{ $repo.Receiver }}.table
+}
+
 // Cols returns the represented cols of {{ $repo.Model.Name }}.
 // Cols are returned in the order they are scanned.
 func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Cols() []string {

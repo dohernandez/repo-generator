@@ -5,9 +5,7 @@ package foo
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"math/big"
-	"strings"
 
 	"github.com/dohernandez/errors"
 	"github.com/jackc/pgerrcode"
@@ -27,26 +25,6 @@ var (
 // row into the values pointed at by dest.
 type NetworkRow interface {
 	Scan(dest ...any) error
-}
-
-// NetworkCriteria is a criteria for the select Network(s).
-//
-// NetworkCriteria is used to generate the where statement of the select. The order of the criteria items
-// matter during generation of the where statement.
-type NetworkCriteria map[string]any
-
-func (c NetworkCriteria) toSql() (string, []interface{}) {
-	var (
-		where []string
-		args  []interface{}
-	)
-
-	for k, v := range c {
-		where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
-		args = append(args, v)
-	}
-
-	return strings.Join(where, " AND "), args
 }
 
 // NetworkSQLDB is an interface for anything that can execute the SQL statements needed to
@@ -100,6 +78,22 @@ func NewNetworkRepo(db NetworkSQLDB, table string) *NetworkRepo {
 		colAddress:   "address",
 		colCreatedAt: "created_at",
 		colUpdatedAt: "updated_at",
+	}
+}
+
+// Cols returns the represented cols of Network.
+// Cols are returned in the order they are scanned.
+func (repo *NetworkRepo) Cols() []string {
+	return []string{
+		repo.colID,
+		repo.colToken,
+		repo.colURI,
+		repo.colNumber,
+		repo.colTotal,
+		repo.colIP,
+		repo.colAddress,
+		repo.colCreatedAt,
+		repo.colUpdatedAt,
 	}
 }
 
@@ -178,126 +172,4 @@ func (repo *NetworkRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Network,
 	}
 
 	return ms, nil
-}
-
-type NetworkOrderByDirection string
-
-const (
-	NetworkOrderByAsc  NetworkOrderByDirection = "ASC"
-	NetworkOrderByDesc NetworkOrderByDirection = "DESC"
-)
-
-type NetworkOrderBy map[string]NetworkOrderByDirection
-
-func (o NetworkOrderBy) toSql() string {
-	var orderBy []string
-
-	for k, v := range o {
-		orderBy = append(orderBy, fmt.Sprintf("%s %s", k, v))
-	}
-
-	return fmt.Sprintf("ORDER BY %s", strings.Join(orderBy, ", "))
-}
-
-type NetworkLimit struct {
-	offset int
-	limit  int
-}
-
-func (o NetworkLimit) toSql() string {
-	if o.limit == 0 {
-		return ""
-	}
-
-	if o.offset == 0 {
-		return fmt.Sprintf("LIMIT %d", o.limit)
-	}
-
-	return fmt.Sprintf("LIMIT %d OFFSET %d", o.limit, o.offset)
-}
-
-// SelectNetworkOptions is a type for specifying options when selecting a Network.
-type SelectNetworkOptions func(*selectNetworkOptions)
-
-type selectNetworkOptions struct {
-	orderBy NetworkOrderBy
-	limit   NetworkLimit
-}
-
-// OrderByNetwork is an option for Select that indicates the order by clause.
-func OrderByNetwork(orderBy NetworkOrderBy) SelectNetworkOptions {
-	return func(o *selectNetworkOptions) {
-		o.orderBy = orderBy
-	}
-}
-
-// LimitNetwork is an option for Select that indicates the limit clause.
-func LimitNetwork(limit int) SelectNetworkOptions {
-	return func(o *selectNetworkOptions) {
-		o.limit.limit = limit
-	}
-}
-
-// LimitOffsetNetwork is an option for Select that indicates the limit and offset clause.
-func LimitOffsetNetwork(limit, offset int) SelectNetworkOptions {
-	return func(o *selectNetworkOptions) {
-		o.limit.limit = limit
-		o.limit.offset = offset
-	}
-}
-
-// Select selects a Network given NetworkCriteria.
-//
-// Returns the error ErrNetworkNotFound if the Network was not found and database did not error,
-// otherwise database error.
-func (repo *NetworkRepo) Select(ctx context.Context, criteria NetworkCriteria, opts ...SelectNetworkOptions) (*Network, error) {
-	opts = append(opts, LimitOffsetNetwork(1, 0))
-
-	query, args := repo.selectSQL(ctx, criteria, opts...)
-
-	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
-}
-
-func (repo *NetworkRepo) selectSQL(ctx context.Context, criteria NetworkCriteria, opts ...SelectNetworkOptions) (string, []interface{}) {
-	var sOpts selectNetworkOptions
-
-	for _, opt := range opts {
-		opt(&sOpts)
-	}
-
-	const q = "SELECT %s FROM %s WHERE %s %s LIMIT 1"
-
-	where, args := criteria.toSql()
-
-	cols := strings.Join([]string{
-		repo.colID,
-		repo.colToken,
-		repo.colURI,
-		repo.colNumber,
-		repo.colTotal,
-		repo.colIP,
-		repo.colAddress,
-		repo.colCreatedAt,
-		repo.colUpdatedAt}, ", ")
-
-	orderBy := sOpts.orderBy.toSql()
-
-	return fmt.Sprintf(q, cols, repo.table, where, orderBy), args
-}
-
-// Select selects all Network given NetworkCriteria.
-//
-// Returns the error ErrNetworkNotFound if not found any Network and database did not error,
-// otherwise database error.
-func (repo *NetworkRepo) SelectAll(ctx context.Context, criteria NetworkCriteria, opts ...SelectNetworkOptions) ([]*Network, error) {
-	opts = append(opts, LimitOffsetNetwork(1, 0))
-
-	query, args := repo.selectSQL(ctx, criteria, opts...)
-
-	rows, err := repo.db.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, errors.Wrap(err, "query context")
-	}
-
-	return repo.ScanAll(ctx, rows)
 }

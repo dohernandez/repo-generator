@@ -164,12 +164,95 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) ScanAll(ctx context.Cont
     return ms, nil
 }
 
+type {{ $repo.Model.Name }}OrderByDirection string
+
+const (
+        {{ $repo.Model.Name }}OrderByAsc {{ $repo.Model.Name }}OrderByDirection = "ASC"
+        {{ $repo.Model.Name }}OrderByDesc {{ $repo.Model.Name }}OrderByDirection = "DESC"
+)
+
+type {{ $repo.Model.Name }}OrderBy map[string]{{ $repo.Model.Name }}OrderByDirection
+
+func (o {{ $repo.Model.Name }}OrderBy) toSql() string {
+    var (
+        orderBy []string
+    )
+
+    for k, v := range o {
+        orderBy = append(orderBy, fmt.Sprintf("%s %s", k, v))
+    }
+
+    return fmt.Sprintf("ORDER BY %s", strings.Join(orderBy, ", "))
+}
+
+type {{ $repo.Model.Name }}Limit struct {
+    offset int
+    limit  int
+}
+
+func (o {{ $repo.Model.Name }}Limit) toSql() string {
+    if o.limit == 0 {
+        return ""
+    }
+
+    if o.offset == 0 {
+        return fmt.Sprintf("LIMIT %d", o.limit)
+    }
+
+    return fmt.Sprintf("LIMIT %d OFFSET %d", o.limit, o.offset)
+}
+
+// Select{{ $repo.Model.Name }}Options is a type for specifying options when selecting a {{ $repo.Model.Name }}.
+type Select{{ $repo.Model.Name }}Options func(*select{{ $repo.Model.Name }}Options)
+
+type select{{ $repo.Model.Name }}Options struct {
+    orderBy {{ $repo.Model.Name }}OrderBy
+    limit   {{ $repo.Model.Name }}Limit
+}
+
+// OrderBy{{ $repo.Model.Name }} is an option for Select that indicates the order by clause.
+func OrderBy{{ $repo.Model.Name }}(orderBy {{ $repo.Model.Name }}OrderBy) Select{{ $repo.Model.Name }}Options {
+    return func(o *select{{ $repo.Model.Name }}Options) {
+        o.orderBy = orderBy
+    }
+}
+
+// Limit{{ $repo.Model.Name }} is an option for Select that indicates the limit clause.
+func Limit{{ $repo.Model.Name }}(limit int) Select{{ $repo.Model.Name }}Options {
+    return func(o *select{{ $repo.Model.Name }}Options) {
+        o.limit.limit = limit
+    }
+}
+
+// LimitOffset{{ $repo.Model.Name }} is an option for Select that indicates the limit and offset clause.
+func LimitOffset{{ $repo.Model.Name }}(limit, offset int) Select{{ $repo.Model.Name }}Options {
+    return func(o *select{{ $repo.Model.Name }}Options) {
+        o.limit.limit = limit
+        o.limit.offset = offset
+    }
+}
+
+
 // Select selects a {{ $repo.Model.Name }} given {{ $repo.Model.Name }}Criteria.
 //
 // Returns the error Err{{ $repo.Model.Name }}NotFound if the {{ $repo.Model.Name }} was not found and database did not error,
 // otherwise database error.
-func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Select(ctx context.Context, criteria {{ $repo.Model.Name }}Criteria) (*{{ $repo.Model.Name }}, error) {
-    const q = "SELECT %s FROM %s WHERE %s"
+func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Select(ctx context.Context, criteria {{ $repo.Model.Name }}Criteria, opts ...Select{{ $repo.Model.Name }}Options) (*{{ $repo.Model.Name }}, error) {
+    opts = append(opts, LimitOffset{{ $repo.Model.Name }}(1, 0))
+
+    query, args := {{ $repo.Receiver }}.selectSQL(ctx, criteria, opts...)
+
+    return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
+}
+
+func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) selectSQL(ctx context.Context, criteria {{ $repo.Model.Name }}Criteria, opts ...Select{{ $repo.Model.Name }}Options) (string, []interface{}) {
+    var sOpts select{{ $repo.Model.Name }}Options
+
+    for _, opt := range opts {
+    opt(&sOpts)
+    }
+
+    const q = "SELECT %s FROM %s WHERE %s %s LIMIT 1"
 
     where, args := criteria.toSql()
 
@@ -182,9 +265,26 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Select(ctx context.Conte
     {{- end -}}
     }, ", ")
 
-    query := fmt.Sprintf(q, cols, repo.table, where)
+    orderBy := sOpts.orderBy.toSql()
 
-    return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
+    return fmt.Sprintf(q, cols, repo.table, where, orderBy), args
+}
+
+// Select selects all {{ $repo.Model.Name }} given {{ $repo.Model.Name }}Criteria.
+//
+// Returns the error Err{{ $repo.Model.Name }}NotFound if not found any {{ $repo.Model.Name }} and database did not error,
+// otherwise database error.
+func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) SelectAll(ctx context.Context, criteria {{ $repo.Model.Name }}Criteria, opts ...Select{{ $repo.Model.Name }}Options) ([]*{{ $repo.Model.Name }}, error) {
+    opts = append(opts, LimitOffset{{ $repo.Model.Name }}(1, 0))
+
+    query, args := {{ $repo.Receiver }}.selectSQL(ctx, criteria, opts...)
+
+    rows, err := repo.db.QueryContext(ctx, query, args...)
+    if err != nil {
+        return nil, errors.Wrap(err, "query context")
+    }
+
+    return repo.ScanAll(ctx, rows)
 }
 
 {{ if has .Funcs "create" }}

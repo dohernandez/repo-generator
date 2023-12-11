@@ -180,12 +180,92 @@ func (repo *NetworkRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Network,
 	return ms, nil
 }
 
+type NetworkOrderByDirection string
+
+const (
+	NetworkOrderByAsc  NetworkOrderByDirection = "ASC"
+	NetworkOrderByDesc NetworkOrderByDirection = "DESC"
+)
+
+type NetworkOrderBy map[string]NetworkOrderByDirection
+
+func (o NetworkOrderBy) toSql() string {
+	var orderBy []string
+
+	for k, v := range o {
+		orderBy = append(orderBy, fmt.Sprintf("%s %s", k, v))
+	}
+
+	return fmt.Sprintf("ORDER BY %s", strings.Join(orderBy, ", "))
+}
+
+type NetworkLimit struct {
+	offset int
+	limit  int
+}
+
+func (o NetworkLimit) toSql() string {
+	if o.limit == 0 {
+		return ""
+	}
+
+	if o.offset == 0 {
+		return fmt.Sprintf("LIMIT %d", o.limit)
+	}
+
+	return fmt.Sprintf("LIMIT %d OFFSET %d", o.limit, o.offset)
+}
+
+// SelectNetworkOptions is a type for specifying options when selecting a Network.
+type SelectNetworkOptions func(*selectNetworkOptions)
+
+type selectNetworkOptions struct {
+	orderBy NetworkOrderBy
+	limit   NetworkLimit
+}
+
+// OrderByNetwork is an option for Select that indicates the order by clause.
+func OrderByNetwork(orderBy NetworkOrderBy) SelectNetworkOptions {
+	return func(o *selectNetworkOptions) {
+		o.orderBy = orderBy
+	}
+}
+
+// LimitNetwork is an option for Select that indicates the limit clause.
+func LimitNetwork(limit int) SelectNetworkOptions {
+	return func(o *selectNetworkOptions) {
+		o.limit.limit = limit
+	}
+}
+
+// LimitOffsetNetwork is an option for Select that indicates the limit and offset clause.
+func LimitOffsetNetwork(limit, offset int) SelectNetworkOptions {
+	return func(o *selectNetworkOptions) {
+		o.limit.limit = limit
+		o.limit.offset = offset
+	}
+}
+
 // Select selects a Network given NetworkCriteria.
 //
 // Returns the error ErrNetworkNotFound if the Network was not found and database did not error,
 // otherwise database error.
-func (repo *NetworkRepo) Select(ctx context.Context, criteria NetworkCriteria) (*Network, error) {
-	const q = "SELECT %s FROM %s WHERE %s"
+func (repo *NetworkRepo) Select(ctx context.Context, criteria NetworkCriteria, opts ...SelectNetworkOptions) (*Network, error) {
+	opts = append(opts, LimitOffsetNetwork(1, 0))
+
+	query, args := repo.selectSQL(ctx, criteria, opts...)
+
+	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
+}
+
+func (repo *NetworkRepo) selectSQL(ctx context.Context, criteria NetworkCriteria, opts ...SelectNetworkOptions) (string, []interface{}) {
+	var sOpts selectNetworkOptions
+
+	for _, opt := range opts {
+		opt(&sOpts)
+	}
+
+	const q = "SELECT %s FROM %s WHERE %s %s LIMIT 1"
 
 	where, args := criteria.toSql()
 
@@ -200,7 +280,24 @@ func (repo *NetworkRepo) Select(ctx context.Context, criteria NetworkCriteria) (
 		repo.colCreatedAt,
 		repo.colUpdatedAt}, ", ")
 
-	query := fmt.Sprintf(q, cols, repo.table, where)
+	orderBy := sOpts.orderBy.toSql()
 
-	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
+	return fmt.Sprintf(q, cols, repo.table, where, orderBy), args
+}
+
+// Select selects all Network given NetworkCriteria.
+//
+// Returns the error ErrNetworkNotFound if not found any Network and database did not error,
+// otherwise database error.
+func (repo *NetworkRepo) SelectAll(ctx context.Context, criteria NetworkCriteria, opts ...SelectNetworkOptions) ([]*Network, error) {
+	opts = append(opts, LimitOffsetNetwork(1, 0))
+
+	query, args := repo.selectSQL(ctx, criteria, opts...)
+
+	rows, err := repo.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, errors.Wrap(err, "query context")
+	}
+
+	return repo.ScanAll(ctx, rows)
 }

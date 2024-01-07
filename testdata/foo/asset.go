@@ -3,7 +3,7 @@ package foo
 import (
 	"time"
 
-	"github.com/dohernandez/repo-generator/testdata/deps"
+	"repo-generator/testdata/deps"
 )
 
 type Asset struct {

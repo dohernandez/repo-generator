@@ -24,19 +24,26 @@ const (
 	columnAutoOpt      = "auto"
 )
 
+// MethodCmpOperator is the operator used to compare a method.
 type MethodCmpOperator string
 
+// String returns the string representation of the operator.
 func (o MethodCmpOperator) String() string {
 	return string(o)
 }
 
 const (
-	MethodCmpOperatorEqual    MethodCmpOperator = "=="
+	// MethodCmpOperatorEqual is the equal operator.
+	MethodCmpOperatorEqual MethodCmpOperator = "=="
+	// MethodCmpOperatorNotEqual is the not equal operator.
 	MethodCmpOperatorNotEqual MethodCmpOperator = "!="
-	MethodCmpOperatorNot      MethodCmpOperator = "!"
-	MethodCmpOperatorGreater  MethodCmpOperator = ">"
+	// MethodCmpOperatorNot is the not operator.
+	MethodCmpOperatorNot MethodCmpOperator = "!"
+	// MethodCmpOperatorGreater is the greater operator.
+	MethodCmpOperatorGreater MethodCmpOperator = ">"
 )
 
+// Method describes a struct method.
 type Method struct {
 	Name                string
 	Pkg                 string
@@ -61,16 +68,16 @@ type Field struct {
 	// ColName is the name of the column in the database.
 	ColName string
 
-	// SqlType is the type of the field use to scan/value from the database.
-	SqlType string
+	// SQLType is the type of the field use to scan/value from the database.
+	SQLType string
 
-	SqlNullable sqltype
+	SQLNullable sqltype
 
-	HasSqlNullable bool
+	HasSQLNullable bool
 
-	SqlArrayable sqlarrayable
+	SQLArrayable sqlarrayable
 
-	HasSqlArrayable bool
+	HasSQLArrayable bool
 
 	// IsNullable indicates if the column is nullable.
 	IsNullable bool
@@ -103,6 +110,7 @@ type Field struct {
 	Nil Method
 }
 
+// Model describes a struct model.
 type Model struct {
 	Name string
 
@@ -113,6 +121,7 @@ type Model struct {
 	Fields []Field
 }
 
+// ParseModel parses a struct and returns a Model.
 func ParseModel(s *ast.StructType, name string) (Model, error) {
 	fields, err := parseFields(s)
 	if err != nil {
@@ -138,9 +147,7 @@ func ParseModel(s *ast.StructType, name string) (Model, error) {
 }
 
 func parseFields(s *ast.StructType) ([]Field, error) {
-	var (
-		fields = make([]Field, 0)
-	)
+	fields := make([]Field, 0)
 
 	for _, field := range s.Fields.List {
 		// If a field has no names, then it's an anonymous / embedded field.
@@ -192,6 +199,7 @@ type tagColumn struct {
 	isArrayable bool
 }
 
+//nolint:funlen
 func parseField(field *ast.Field) (Field, error) {
 	var (
 		isPointer bool
@@ -204,7 +212,7 @@ func parseField(field *ast.Field) (Field, error) {
 
 		hasValueMethod bool
 		hasArrayable   bool
-		hasSqlNullable bool
+		hasSQLNullable bool
 		hasScanMethod  bool
 		hasNilMethod   bool
 	)
@@ -252,7 +260,7 @@ func parseField(field *ast.Field) (Field, error) {
 		if ok {
 			sType = ss.t
 			sNullable = ss
-			hasSqlNullable = true
+			hasSQLNullable = true
 		}
 	}
 
@@ -290,13 +298,13 @@ func parseField(field *ast.Field) (Field, error) {
 
 		ColName: tagCol.name,
 
-		SqlType: sType,
+		SQLType: sType,
 
-		SqlNullable:    sNullable,
-		HasSqlNullable: hasSqlNullable,
+		SQLNullable:    sNullable,
+		HasSQLNullable: hasSQLNullable,
 
-		SqlArrayable:    sArrayable,
-		HasSqlArrayable: hasArrayable,
+		SQLArrayable:    sArrayable,
+		HasSQLArrayable: hasArrayable,
 
 		IsNullable:   tagCol.isNullable,
 		IsKey:        tagCol.isKey,
@@ -333,7 +341,6 @@ func parseTagColumn(field *ast.Field) tagColumn {
 
 	for _, opt := range opts {
 		if strings.Contains(opt, "=") {
-			//kv := strings.Split(opt, "=")
 			continue
 		}
 

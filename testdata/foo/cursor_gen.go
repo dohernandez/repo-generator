@@ -6,11 +6,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"repo-generator/testdata/deps"
 	"strings"
 	"time"
 
 	"github.com/dohernandez/errors"
-	"github.com/dohernandez/repo-generator/testdata/deps"
 	"github.com/google/uuid"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -34,32 +34,13 @@ type CursorRow interface {
 	Scan(dest ...any) error
 }
 
-// CursorCriteria is a criteria for the select Cursor(s).
-//
-// CursorCriteria is used to generate the where statement of the select. The order of the criteria items
-// matter during generation of the where statement.
-type CursorCriteria map[string]any
-
-func (c CursorCriteria) toSql() (string, []interface{}) {
-	var (
-		where []string
-		args  []interface{}
-	)
-
-	for k, v := range c {
-		where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
-		args = append(args, v)
-	}
-
-	return strings.Join(where, " AND "), args
-}
-
 // CursorSQLDB is an interface for anything that can execute the SQL statements needed to
 // perform the Cursor operations.
 type CursorSQLDB interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 	ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
 
 // CursorRepo is a repository for the Cursor.
@@ -99,6 +80,25 @@ func NewCursorRepo(db CursorSQLDB, table string) *CursorRepo {
 		colLeaderElectedAt: "leader_elected_at",
 		colCreatedAt:       "created_at",
 		colUpdatedAt:       "updated_at",
+	}
+}
+
+// Table returns the table name.
+func (repo *CursorRepo) Table() string {
+	return repo.table
+}
+
+// Cols returns the represented cols of Cursor.
+// Cols are returned in the order they are scanned.
+func (repo *CursorRepo) Cols() []string {
+	return []string{
+		repo.colID,
+		repo.colName,
+		repo.colPosition,
+		repo.colLeader,
+		repo.colLeaderElectedAt,
+		repo.colCreatedAt,
+		repo.colUpdatedAt,
 	}
 }
 
@@ -173,29 +173,6 @@ func (repo *CursorRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Cursor, e
 	}
 
 	return ms, nil
-}
-
-// Select selects a Cursor given CursorCriteria.
-//
-// Returns the error ErrCursorNotFound if the Cursor was not found and database did not error,
-// otherwise database error.
-func (repo *CursorRepo) Select(ctx context.Context, criteria CursorCriteria) (*Cursor, error) {
-	const q = "SELECT %s FROM %s WHERE %s"
-
-	where, args := criteria.toSql()
-
-	cols := strings.Join([]string{
-		repo.colID,
-		repo.colName,
-		repo.colPosition,
-		repo.colLeader,
-		repo.colLeaderElectedAt,
-		repo.colCreatedAt,
-		repo.colUpdatedAt}, ", ")
-
-	query := fmt.Sprintf(q, cols, repo.table, where)
-
-	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
 }
 
 // Create creates a new Cursor and returns the persisted Cursor.

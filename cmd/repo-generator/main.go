@@ -1,3 +1,4 @@
+// Package main cli.
 package main
 
 import (
@@ -22,9 +23,10 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:     "repo-generator",
-	Short:   "A CLI repo-generator",
-	Long:    "Generate repo objects for your Golang model struct\n",
+	Use:   "repo-generator",
+	Short: "A CLI repo-generator",
+	Long:  "Generate repo objects for your Golang model struct\n",
+	//nolint:godox
 	Version: "v0.1.0", // TODO: read from version.txt
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Starting %s version=%s\n", cmd.Use, cmd.Version)
@@ -77,6 +79,7 @@ var rootCmd = &cobra.Command{
 	},
 }
 
+//nolint:gochecknoinits
 func init() {
 	rootCmd.PersistentFlags().StringVar(&srcpkg, "srcpkg", "", "Source pkg to search for struct (required)")
 	rootCmd.PersistentFlags().StringVar(&output, "output", "", "Path of the output file (required)")

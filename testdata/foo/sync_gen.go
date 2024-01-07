@@ -7,10 +7,10 @@ import (
 	"database/sql"
 	"fmt"
 	"math/big"
+	"repo-generator/testdata/deps"
 	"strings"
 
 	"github.com/dohernandez/errors"
-	"github.com/dohernandez/repo-generator/testdata/deps"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -35,30 +35,19 @@ type SyncRow interface {
 	Scan(dest ...any) error
 }
 
-// SyncCriteria is a criteria for the select Sync(s).
-//
-// SyncCriteria is used to generate the where statement of the select. The order of the criteria items
-// matter during generation of the where statement.
-type SyncCriteria map[string]any
-
-func (c SyncCriteria) toSql() (string, []interface{}) {
-	var (
-		where []string
-		args  []interface{}
-	)
-
-	for k, v := range c {
-		where = append(where, fmt.Sprintf("%s = $%d", k, len(where)+1))
-		args = append(args, v)
-	}
-
-	return strings.Join(where, " AND "), args
+// SyncSQLDB is an interface for anything that can execute the SQL statements needed to
+// perform the Sync operations.
+type SyncSQLDB interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
 
 // SyncRepo is a repository for the Sync.
 type SyncRepo struct {
 	// db is the database connection.
-	db *sql.DB
+	db SyncSQLDB
 
 	// table is the table name.
 	table string
@@ -94,7 +83,7 @@ type SyncRepo struct {
 }
 
 // NewSyncRepo creates a new SyncRepo.
-func NewSyncRepo(db *sql.DB, table string) *SyncRepo {
+func NewSyncRepo(db SyncSQLDB, table string) *SyncRepo {
 	return &SyncRepo{
 		db:    db,
 		table: table,
@@ -113,6 +102,32 @@ func NewSyncRepo(db *sql.DB, table string) *SyncRepo {
 		colTracesPath:       "traces_path",
 		colCreatedAt:        "created_at",
 		colUpdatedAt:        "updated_at",
+	}
+}
+
+// Table returns the table name.
+func (repo *SyncRepo) Table() string {
+	return repo.table
+}
+
+// Cols returns the represented cols of Sync.
+// Cols are returned in the order they are scanned.
+func (repo *SyncRepo) Cols() []string {
+	return []string{
+		repo.colID,
+		repo.colState,
+		repo.colChainID,
+		repo.colBlockNumber,
+		repo.colBlockHash,
+		repo.colParentHash,
+		repo.colBlockTimestamp,
+		repo.colBlockHeaderPath,
+		repo.colTransactionsPath,
+		repo.colReceiptsPath,
+		repo.colLogsPath,
+		repo.colTracesPath,
+		repo.colCreatedAt,
+		repo.colUpdatedAt,
 	}
 }
 
@@ -217,36 +232,6 @@ func (repo *SyncRepo) ScanAll(ctx context.Context, rs *sql.Rows) ([]*Sync, error
 	}
 
 	return ms, nil
-}
-
-// Select selects a Sync given SyncCriteria.
-//
-// Returns the error ErrSyncNotFound if the Sync was not found and database did not error,
-// otherwise database error.
-func (repo *SyncRepo) Select(ctx context.Context, criteria SyncCriteria) (*Sync, error) {
-	const q = "SELECT %s FROM %s WHERE %s"
-
-	where, args := criteria.toSql()
-
-	cols := strings.Join([]string{
-		repo.colID,
-		repo.colState,
-		repo.colChainID,
-		repo.colBlockNumber,
-		repo.colBlockHash,
-		repo.colParentHash,
-		repo.colBlockTimestamp,
-		repo.colBlockHeaderPath,
-		repo.colTransactionsPath,
-		repo.colReceiptsPath,
-		repo.colLogsPath,
-		repo.colTracesPath,
-		repo.colCreatedAt,
-		repo.colUpdatedAt}, ", ")
-
-	query := fmt.Sprintf(q, cols, repo.table, where)
-
-	return repo.Scan(ctx, repo.db.QueryRowContext(ctx, query, args...))
 }
 
 // Create creates a new Sync and returns the persisted Sync.

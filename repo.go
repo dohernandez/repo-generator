@@ -4,6 +4,7 @@ import (
 	"go/ast"
 )
 
+// Repo describes a repo.
 type Repo struct {
 	Receiver string
 
@@ -15,6 +16,7 @@ type Repo struct {
 	ColStatesFields []Field
 }
 
+// ParseRepo parses a repo and returns a Repo.
 func ParseRepo(tree *ast.File, model string) (Repo, error) {
 	var (
 		m   Model
@@ -49,8 +51,8 @@ func ParseRepo(tree *ast.File, model string) (Repo, error) {
 	})
 
 	var (
-		colKeys   []Field
-		colStates []Field
+		colKeys   = make([]Field, 0, len(m.Fields))
+		colStates = make([]Field, 0, len(m.Fields))
 	)
 
 	for _, f := range m.Fields {

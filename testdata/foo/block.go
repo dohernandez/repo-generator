@@ -5,8 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/dohernandez/repo-generator/testdata/deps"
+	"repo-generator/testdata/deps"
 )
 
 type Block struct {

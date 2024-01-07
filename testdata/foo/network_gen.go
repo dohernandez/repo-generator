@@ -33,6 +33,7 @@ type NetworkSQLDB interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 	ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
 }
 
 // NetworkRepo is a repository for the Network.
@@ -107,20 +108,20 @@ func (repo *NetworkRepo) Scan(_ context.Context, s NetworkRow) (*Network, error)
 	var (
 		m Network
 
-		uRI     sql.NullString
+		uri     sql.NullString
 		number  sql.NullInt64
 		total   int64
-		iP      string
+		ip      string
 		address sql.NullString
 	)
 
 	err := s.Scan(
 		&m.ID,
 		&m.Token,
-		&uRI,
+		&uri,
 		&number,
 		&total,
-		&iP,
+		&ip,
 		&address,
 		&m.CreatedAt,
 		&m.UpdatedAt,
@@ -139,8 +140,8 @@ func (repo *NetworkRepo) Scan(_ context.Context, s NetworkRow) (*Network, error)
 		return nil, errors.WrapError(err, ErrNetworkScan)
 	}
 
-	if uRI.Valid {
-		m.URI = uRI.String
+	if uri.Valid {
+		m.URI = uri.String
 	}
 
 	if number.Valid {
@@ -149,7 +150,7 @@ func (repo *NetworkRepo) Scan(_ context.Context, s NetworkRow) (*Network, error)
 
 	m.Total = bigNewInt(total)
 
-	tmp := iP
+	tmp := ip
 	m.IP = &tmp
 
 	if address.Valid {

@@ -1,0 +1,5 @@
+plugins:
+  - name: dohernandez/storage
+    package: github.com/dohernandez/storage
+    makefiles_path: makefiles
+    main: main.mk

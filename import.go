@@ -14,6 +14,7 @@ var defaultImports = map[string]string{
 	"pgconn":    "github.com/jackc/pgx/v5/pgconn",
 }
 
+// ErrPackageNotFound is the error that indicates a package was not found.
 var ErrPackageNotFound = errors.New("package not found")
 
 // PackageImport defines a package which was imported in a Go file.
@@ -24,6 +25,7 @@ type PackageImport struct {
 	Path string
 }
 
+//nolint:gocognit,unparam
 func parseImports(tree *ast.File, r Repo) (map[string]PackageImport, error) {
 	mImports := make(map[string]PackageImport)
 
@@ -64,6 +66,7 @@ func parseImports(tree *ast.File, r Repo) (map[string]PackageImport, error) {
 		}
 	}
 
+	//nolint:godox
 	// TODO: test
 	// 1. arrayable, nullable, no scan method
 	// 2. package type (type is defined in another pkg), nullable, scan method
@@ -76,13 +79,11 @@ func parseImports(tree *ast.File, r Repo) (map[string]PackageImport, error) {
 			continue
 		}
 
-		if f.HasSqlArrayable {
+		if f.HasSQLArrayable {
 			k := path.Base(arrayablePackageImport.Path)
 
 			pImports[k] = arrayablePackageImport
 		}
-
-		//parts := strings.Split(f.Type, ".")
 
 		for t, fn := range map[string]Method{
 			"scan":  f.Scan,
@@ -91,6 +92,7 @@ func parseImports(tree *ast.File, r Repo) (map[string]PackageImport, error) {
 		} {
 			var pkg string
 
+			//nolint:nestif
 			if t == "scan" {
 				if fn.Pkg == "" {
 					continue
@@ -126,9 +128,9 @@ func parseImports(tree *ast.File, r Repo) (map[string]PackageImport, error) {
 
 			pImports[fn.Pkg] = mi
 		}
-
 	}
 
+	//nolint:godox
 	// TODO: sort imports
 	return pImports, nil
 }

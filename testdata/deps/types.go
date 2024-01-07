@@ -3,6 +3,7 @@ package deps
 import (
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 
 	"github.com/dohernandez/errors"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,7 +17,7 @@ var HexToHash = common.HexToHash
 type ChainID int
 
 func (c ChainID) String() string {
-	return string(c)
+	return fmt.Sprintf("%d", int(c))
 }
 
 const (

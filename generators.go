@@ -21,6 +21,7 @@ const repoTplFilename = "repo.tmpl"
 //go:embed repo.tmpl
 var repoTpl embed.FS
 
+// Generator is the generator struct.
 type Generator struct {
 	Package string
 	Imports map[string]PackageImport
@@ -30,6 +31,7 @@ type Generator struct {
 	Funcs []repoFunc
 }
 
+// Generate generates a repo file.
 func Generate(sourcePath, outputPath string, model string, opts ...Option) error {
 	var options Options
 
@@ -77,12 +79,12 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 
 			return " AND"
 		},
-		"fieldToCreateSql": fieldToCreateSql(r),
+		"fieldToCreateSQL": fieldToCreateSQL(r),
 		"fieldType":        fieldType(r),
 		"scanField":        scanField(r),
 		"sqlToField":       sqlToField(r),
-		"fieldToInsertSql": fieldToInsertSql(r),
-		"fieldToUpdateSql": fieldToUpdateSql(r),
+		"fieldToInsertSQL": fieldToInsertSQL(r),
+		"fieldToUpdateSQL": fieldToUpdateSQL(r),
 		"fieldToRequire":   fieldToRequire(r),
 		"fieldValueMethod": fieldValueMethod,
 		"has": func(ls []repoFunc, c ...string) bool {
@@ -115,7 +117,7 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 	// Format the source code before writing.
 	output, err := format.Source(b.Bytes(), format.Options{})
 	if err != nil {
-		return errors.Wrap(err, string(b.Bytes()))
+		return errors.Wrapf(err, b.String())
 	}
 
 	if err = os.WriteFile(outputPath, output, 0o600); err != nil {
@@ -127,7 +129,7 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 	return nil
 }
 
-func fieldToCreateSql(repo Repo) func(f any) string {
+func fieldToCreateSQL(repo Repo) func(f any) string {
 	return func(f any) string {
 		fd, ok := f.(Field)
 		if !ok {
@@ -219,7 +221,7 @@ func fieldArrayable(f Field, colName string, skipZeroValues bool, tmplFunc func(
 			tmplFunc() +
 			`}`
 
-		return fmt.Sprintf(tmpl, colName, f.LowerCaseName, f.SqlType, f.Name, value)
+		return fmt.Sprintf(tmpl, colName, f.LowerCaseName, f.SQLType, f.Name, value)
 	}
 
 	tmpl := `
@@ -231,7 +233,7 @@ func fieldArrayable(f Field, colName string, skipZeroValues bool, tmplFunc func(
 			` +
 		tmplFunc()
 
-	return fmt.Sprintf(tmpl, colName, f.LowerCaseName, f.SqlType, f.Name, value)
+	return fmt.Sprintf(tmpl, colName, f.LowerCaseName, f.SQLType, f.Name, value)
 }
 
 func fieldValueMethod(f Field, a string) string {
@@ -256,11 +258,11 @@ func fieldNullable(f Field, colName, value string, tmplFunc func() string) strin
 	}
 
 	// Has a nullable type.
-	if !f.HasSqlNullable {
+	if !f.HasSQLNullable {
 		return fmt.Sprintf(tmplFunc(), colName, value)
 	}
 
-	tnullable := fmt.Sprintf("%s.%s", f.LowerCaseName, f.SqlNullable.set)
+	tnullable := fmt.Sprintf("%s.%s", f.LowerCaseName, f.SQLNullable.set)
 
 	tmpl := `
 		var %[1]s %[2]s
@@ -270,7 +272,7 @@ func fieldNullable(f Field, colName, value string, tmplFunc func() string) strin
 
 		` + tmplFunc()
 
-	return fmt.Sprintf(tmpl, f.LowerCaseName, f.SqlType, tnullable, value, colName)
+	return fmt.Sprintf(tmpl, f.LowerCaseName, f.SQLType, tnullable, value, colName)
 }
 
 func fieldOmitEmpty(f Field, colName, value string, skipZeroValues bool, tmplFunc func() string) string {
@@ -339,6 +341,7 @@ func ifEmptyStatement(f Field, value string, equals bool) string {
 		return f.Nil.EqualCmpOperator.String() + tmpl
 	}
 
+	//nolint:exhaustive // generator.MethodCmpOperatorEqual is for EqualCmpOperator field.
 	switch f.Nil.NotEqualCmpOperator {
 	case MethodCmpOperatorNotEqual, MethodCmpOperatorGreater:
 		return fmt.Sprintf(
@@ -359,11 +362,11 @@ func fieldOmitEmptyNullable(f Field, colName, value string) string {
 		value = fmt.Sprintf("*%s", value)
 	}
 
-	tnullable := fmt.Sprintf("%s.%s", f.LowerCaseName, f.SqlNullable.set)
+	tnullable := fmt.Sprintf("%s.%s", f.LowerCaseName, f.SQLNullable.set)
 	ifNotEmpty := ifEmptyStatement(f, value, false)
 
 	if ifNotEmpty == "" {
-		if f.HasSqlNullable {
+		if f.HasSQLNullable {
 			tmpl := `
 				var %[1]s %[2]s
 
@@ -374,7 +377,7 @@ func fieldOmitEmptyNullable(f Field, colName, value string) string {
 				args = append(args, %[1]s)
 				`
 
-			return fmt.Sprintf(tmpl, f.LowerCaseName, f.SqlType, tnullable, value, colName)
+			return fmt.Sprintf(tmpl, f.LowerCaseName, f.SQLType, tnullable, value, colName)
 		}
 
 		tmpl := `
@@ -385,7 +388,7 @@ func fieldOmitEmptyNullable(f Field, colName, value string) string {
 		return fmt.Sprintf(tmpl, colName, value)
 	}
 
-	if !f.HasSqlNullable {
+	if !f.HasSQLNullable {
 		tmpl := `
 			if %[1]s {
 				cols = append(cols, %[2]s)
@@ -406,8 +409,9 @@ func fieldOmitEmptyNullable(f Field, colName, value string) string {
 			cols = append(cols, %[6]s)
 			args = append(args, %[2]s)
 		}
-			`
-	return fmt.Sprintf(tmpl, ifNotEmpty, f.LowerCaseName, f.SqlType, tnullable, value, colName)
+		`
+
+	return fmt.Sprintf(tmpl, ifNotEmpty, f.LowerCaseName, f.SQLType, tnullable, value, colName)
 }
 
 func fieldType(_ Repo) func(f any) string {
@@ -418,27 +422,27 @@ func fieldType(_ Repo) func(f any) string {
 		}
 
 		if fd.IsArrayable {
-			if fd.HasSqlArrayable {
-				return fmt.Sprintf("%ss %s", fd.LowerCaseName, fd.SqlArrayable)
+			if fd.HasSQLArrayable {
+				return fmt.Sprintf("%ss %s", fd.LowerCaseName, fd.SQLArrayable)
 			}
 
-			return fmt.Sprintf("%ss %s", fd.LowerCaseName, fd.SqlType)
+			return fmt.Sprintf("%ss %s", fd.LowerCaseName, fd.SQLType)
 		}
 
 		if fd.IsNullable {
-			return fmt.Sprintf("%s %s", fd.LowerCaseName, fd.SqlType)
+			return fmt.Sprintf("%s %s", fd.LowerCaseName, fd.SQLType)
 		}
 
 		if fd.IsPointer {
-			if fd.SqlType != "" {
-				return fmt.Sprintf("%s %s", fd.LowerCaseName, fd.SqlType)
+			if fd.SQLType != "" {
+				return fmt.Sprintf("%s %s", fd.LowerCaseName, fd.SQLType)
 			}
 
 			return fmt.Sprintf("%s %s", fd.LowerCaseName, fd.Type)
 		}
 
-		if fd.SqlType != "" {
-			return fmt.Sprintf("%s %s", fd.LowerCaseName, fd.SqlType)
+		if fd.SQLType != "" {
+			return fmt.Sprintf("%s %s", fd.LowerCaseName, fd.SQLType)
 		}
 
 		if fd.HasScanMethod {
@@ -468,7 +472,7 @@ func scanField(_ Repo) func(f any) string {
 			return fmt.Sprintf("&%s", fd.LowerCaseName)
 		}
 
-		if fd.SqlType != "" {
+		if fd.SQLType != "" {
 			return fmt.Sprintf("&%s", fd.LowerCaseName)
 		}
 
@@ -506,8 +510,8 @@ func sqlToField(_ Repo) func(f any) string {
 		if fd.IsNullable {
 			fieldCaseName := fd.LowerCaseName
 
-			if fd.HasSqlNullable {
-				fieldCaseName = fmt.Sprintf("%s.%s", fd.LowerCaseName, fd.SqlNullable.set)
+			if fd.HasSQLNullable {
+				fieldCaseName = fmt.Sprintf("%s.%s", fd.LowerCaseName, fd.SQLNullable.set)
 			}
 
 			scan = fieldSanMethod(fd, fieldCaseName)
@@ -528,13 +532,12 @@ func sqlToField(_ Repo) func(f any) string {
 				// 		tmp = so.String
 				//		m.SO = &tmp
 				// }
-
 				tmpl = `
-			if %[1]s.Valid {
-				tmp := %[2]s
-				m.%[3]s = &tmp
-			}
-			`
+				if %[1]s.Valid {
+					tmp := %[2]s
+					m.%[3]s = &tmp
+				}
+				`
 			}
 
 			return fmt.Sprintf(tmpl, fd.LowerCaseName, scan, fd.Name)
@@ -545,7 +548,6 @@ func sqlToField(_ Repo) func(f any) string {
 			// 		tmp = so.String
 			//		m.SO = &tmp
 			// }
-
 			tmpl := `
 			tmp := %[2]s
 			m.%[3]s = &tmp
@@ -560,7 +562,7 @@ func sqlToField(_ Repo) func(f any) string {
 			return fmt.Sprintf(tmpl, fd.LowerCaseName, scan, fd.Name)
 		}
 
-		if !fd.HasScanMethod && fd.SqlType == "" {
+		if !fd.HasScanMethod && fd.SQLType == "" {
 			return ""
 		}
 
@@ -584,7 +586,7 @@ func fieldSanMethod(f Field, a string) string {
 	return fmt.Sprintf("%s(%s)", f.Scan.Name, a)
 }
 
-func fieldToInsertSql(_ Repo) func(f any) string {
+func fieldToInsertSQL(_ Repo) func(f any) string {
 	return func(f any) string {
 		fd, ok := f.(Field)
 		if !ok {
@@ -650,7 +652,7 @@ func tmplFieldNilMethod(f Field, a string) string {
 	return fmt.Sprintf("%s(%s)", f.Nil.Name, a)
 }
 
-func fieldToUpdateSql(repo Repo) func(f Field, b bool) string {
+func fieldToUpdateSQL(repo Repo) func(f Field, b bool) string {
 	return func(f Field, b bool) string {
 		colName := fmt.Sprintf("%s.col%s", repo.Receiver, f.Name)
 

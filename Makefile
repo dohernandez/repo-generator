@@ -31,6 +31,8 @@ endif
 -include $(PLUGIN_BOOL64DEV_MAKEFILES_PATH)/release-assets.mk
 -include $(EXTEND_DEVGO_PATH)/makefiles/github-actions.mk
 -include $(PLUGIN_DOHERNANDEZSTORAGE_MAKEFILES_PATH)/github-actions.mk
+-include $(PLUGIN_LOCAL_MAKEFILES_PATH)/repo-generator.mk
+-include $(PLUGIN_BOOL64DEV_MAKEFILES_PATH)/build.mk
 # End extra recipes here.
 
 # DO NOT EDIT ANYTHING BELOW THIS LINE.
@@ -47,7 +49,13 @@ GITHUB_ACTIONS_RELEASE_ASSETS = true
 
 AFTER_TEST_TARGETS += test-gen
 
+
+REPO_GENERATOR_DEVGO_PATH = ./
+
 test-gen:
+	@cd testdata && go mod vendor && make -e TEST_SUITE="repo gen" test
+
+test-binary:
 	@cd testdata && go mod vendor && make -e TEST_SUITE="repo gen" test
 
 

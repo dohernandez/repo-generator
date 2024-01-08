@@ -7,12 +7,12 @@ import (
 	"database/sql"
 	"fmt"
 	"math/big"
+	"repo-generator/testdata/deps"
 	"strings"
 
 	"github.com/dohernandez/errors"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
-	"repo-generator/testdata/deps"
 )
 
 var (
@@ -144,8 +144,6 @@ func (repo *BlockRepo) Scan(_ context.Context, s BlockRow) (*Block, error) {
 	if parentHash.Valid {
 		m.ParentHash = deps.HexToHash(parentHash.String)
 	}
-
-	println("blockTimestamp", blockTimestamp.Time.UTC(), blockTimestamp.Valid)
 
 	if blockTimestamp.Valid {
 		m.BlockTimestamp = blockTimestamp.Time.UTC()

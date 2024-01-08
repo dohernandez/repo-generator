@@ -22,18 +22,22 @@ var (
 	del    bool
 )
 
+// ERR Unable to find 'foo' in any go files under this path dry-run=false version=v2.36.0
+
 var rootCmd = &cobra.Command{
 	Use:   "repo-generator",
 	Short: "A CLI repo-generator",
 	Long:  "Generate repo objects for your Golang model struct\n",
 	//nolint:godox
-	Version: "v0.1.0", // TODO: read from version.txt
+	Version: "v0.2.1", // TODO: read from version.txt
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("Starting %s version=%s\n", cmd.Use, cmd.Version)
 
 		var (
 			options  []generator.Option
 			optFlags []string
+
+			qualifiedName string
 		)
 		// Your logic for handling the selected functionalities
 		if create {
@@ -52,27 +56,51 @@ var rootCmd = &cobra.Command{
 			optFlags = append(optFlags, "--delete")
 		}
 
-		if output == "" {
-			output = generateGenPath(srcpkg)
+		if model == "" {
+			fmt.Println("\033[91mERR:\033[0m Use --model to specify the name of the model struct use to generate repo for")
+
+			os.Exit(1)
+		}
+
+		var err error
+
+		if srcpkg == "" {
+			srcpkg, err = os.Getwd()
+			if err != nil {
+				panic(err)
+			}
 		}
 
 		flags := strings.Join(optFlags, " ")
 
+		qualifiedName, err = generator.FindModelSourcePath(model, srcpkg)
+		if err != nil {
+			fmt.Printf("\033[91mERR:\033[0m %s\n", err.Error())
+
+			os.Exit(1)
+		}
+
 		// Additional logic for your application based on the provided arguments
 		fmt.Printf("Generating mock model=%s qualified-name=%s %s version=%s\n",
 			model,
-			srcpkg,
+			qualifiedName,
 			flags,
 			cmd.Version,
 		)
 
+		if output == "" {
+			output = generateGenPath(qualifiedName)
+		}
+
 		if err := generator.Generate(
-			srcpkg,
+			qualifiedName,
 			output,
 			model,
 			options...,
 		); err != nil {
-			fmt.Println(err)
+			fmt.Printf("\033[91mERR:\033[0m %s\n", err.Error())
+
+			os.Exit(1)
 		}
 
 		fmt.Println("repo file generated!")

@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/dohernandez/repo-generator/testdata/deps"
+	"repo-generator/testdata/deps"
 )
 
 type Network struct {

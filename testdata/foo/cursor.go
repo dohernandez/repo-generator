@@ -4,8 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	_ "github.com/dohernandez/repo-generator/testdata/deps"
+	_ "repo-generator/testdata/deps"
 )
 
 type Cursor struct {

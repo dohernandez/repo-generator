@@ -5,8 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/dohernandez/repo-generator/testdata/deps"
+	"repo-generator/testdata/deps"
 )
 
 type Transfer struct {
@@ -17,7 +16,7 @@ type Transfer struct {
 	// BlockHash is the hash of the block including this transfer.
 	BlockHash deps.Hash `db:"block_hash" type:"string" value:".String" scan:"deps.HexToHash"`
 
-	//BlockTimestamp is the timestamp in seconds for when the block was collated.
+	// BlockTimestamp is the timestamp in seconds for when the block was collated.
 	BlockTimestamp uint64 `db:"block_timestamp"`
 
 	// TransactionHash is the hash of the transaction (tx.hash).

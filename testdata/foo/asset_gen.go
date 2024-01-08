@@ -6,10 +6,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"repo-generator/testdata/deps"
 	"strings"
 
 	"github.com/dohernandez/errors"
-	"github.com/dohernandez/repo-generator/testdata/deps"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/lib/pq"
@@ -30,10 +30,19 @@ type AssetRow interface {
 	Scan(dest ...any) error
 }
 
+// AssetSQLDB is an interface for anything that can execute the SQL statements needed to
+// perform the Asset operations.
+type AssetSQLDB interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
 // AssetRepo is a repository for the Asset.
 type AssetRepo struct {
 	// db is the database connection.
-	db *sql.DB
+	db AssetSQLDB
 
 	// table is the table name.
 	table string
@@ -61,7 +70,7 @@ type AssetRepo struct {
 }
 
 // NewAssetRepo creates a new AssetRepo.
-func NewAssetRepo(db *sql.DB, table string) *AssetRepo {
+func NewAssetRepo(db AssetSQLDB, table string) *AssetRepo {
 	return &AssetRepo{
 		db:    db,
 		table: table,
@@ -76,6 +85,28 @@ func NewAssetRepo(db *sql.DB, table string) *AssetRepo {
 		colImmutable: "immutable",
 		colCreatedAt: "created_at",
 		colUpdatedAt: "updated_at",
+	}
+}
+
+// Table returns the table name.
+func (repo *AssetRepo) Table() string {
+	return repo.table
+}
+
+// Cols returns the represented cols of Asset.
+// Cols are returned in the order they are scanned.
+func (repo *AssetRepo) Cols() []string {
+	return []string{
+		repo.colChainID,
+		repo.colAddress,
+		repo.colBlockHash,
+		repo.colType,
+		repo.colName,
+		repo.colSymbol,
+		repo.colMetadata,
+		repo.colImmutable,
+		repo.colCreatedAt,
+		repo.colUpdatedAt,
 	}
 }
 

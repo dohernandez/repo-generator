@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/dohernandez/errors"
-	"github.com/dohernandez/repo-generator/testdata/deps"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	"repo-generator/testdata/deps"
 )
 
 var (
@@ -25,6 +25,8 @@ var (
 
 	// ErrBlockUpdate is the error that indicates a Block was not updated.
 	ErrBlockUpdate = errors.New("update")
+	// ErrBlockDelete is the error that indicates a Block was not deleted.
+	ErrBlockDelete = errors.New("delete")
 )
 
 // BlockRow is an interface for anything that can scan a Block, copying the columns from the matched
@@ -33,10 +35,19 @@ type BlockRow interface {
 	Scan(dest ...any) error
 }
 
+// BlockSQLDB is an interface for anything that can execute the SQL statements needed to
+// perform the Block operations.
+type BlockSQLDB interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
 // BlockRepo is a repository for the Block.
 type BlockRepo struct {
 	// db is the database connection.
-	db *sql.DB
+	db BlockSQLDB
 
 	// table is the table name.
 	table string
@@ -56,7 +67,7 @@ type BlockRepo struct {
 }
 
 // NewBlockRepo creates a new BlockRepo.
-func NewBlockRepo(db *sql.DB, table string) *BlockRepo {
+func NewBlockRepo(db BlockSQLDB, table string) *BlockRepo {
 	return &BlockRepo{
 		db:    db,
 		table: table,
@@ -70,12 +81,30 @@ func NewBlockRepo(db *sql.DB, table string) *BlockRepo {
 	}
 }
 
+// Table returns the table name.
+func (repo *BlockRepo) Table() string {
+	return repo.table
+}
+
+// Cols returns the represented cols of Block.
+// Cols are returned in the order they are scanned.
+func (repo *BlockRepo) Cols() []string {
+	return []string{
+		repo.colID,
+		repo.colChainID,
+		repo.colHash,
+		repo.colNumber,
+		repo.colParentHash,
+		repo.colBlockTimestamp,
+	}
+}
+
 // Scan scans a Block from the given BlockRow (sql.Row|sql.Rows).
 func (repo *BlockRepo) Scan(_ context.Context, s BlockRow) (*Block, error) {
 	var (
 		m Block
 
-		chainID        int
+		chainId        int
 		hash           sql.NullString
 		number         int64
 		parentHash     sql.NullString
@@ -84,7 +113,7 @@ func (repo *BlockRepo) Scan(_ context.Context, s BlockRow) (*Block, error) {
 
 	err := s.Scan(
 		&m.ID,
-		&chainID,
+		&chainId,
 		&hash,
 		&number,
 		&parentHash,
@@ -104,7 +133,7 @@ func (repo *BlockRepo) Scan(_ context.Context, s BlockRow) (*Block, error) {
 		return nil, errors.WrapError(err, ErrBlockScan)
 	}
 
-	m.ChainID = deps.ChainID(chainID)
+	m.ChainID = deps.ChainID(chainId)
 
 	if hash.Valid {
 		m.Hash = deps.HexToHash(hash.String)
@@ -115,6 +144,8 @@ func (repo *BlockRepo) Scan(_ context.Context, s BlockRow) (*Block, error) {
 	if parentHash.Valid {
 		m.ParentHash = deps.HexToHash(parentHash.String)
 	}
+
+	println("blockTimestamp", blockTimestamp.Time.UTC(), blockTimestamp.Valid)
 
 	if blockTimestamp.Valid {
 		m.BlockTimestamp = blockTimestamp.Time.UTC()
@@ -314,6 +345,21 @@ func (repo *BlockRepo) valuesStatement(cols []string, offset int, separator bool
 	return fmt.Sprintf("(%s)%s", strings.Join(values, ", "), sep)
 }
 
+// UpdateBlockOptions is a type for specifying options when updating a Block.
+type UpdateBlockOptions func(*updateBlockOptions)
+
+type updateBlockOptions struct {
+	// skipZeroValues indicates whether to skip zero values from the update statement.
+	skipZeroValues bool
+}
+
+// SkipBlockZeroValues is an option for Update that indicates whether to skip zero values from the update statement.
+func SkipBlockZeroValues() UpdateBlockOptions {
+	return func(o *updateBlockOptions) {
+		o.skipZeroValues = true
+	}
+}
+
 // Update updates a Block.
 //
 // skipZeroValues indicates whether to skip zero values from the update statement.
@@ -322,7 +368,13 @@ func (repo *BlockRepo) valuesStatement(cols []string, offset int, separator bool
 //
 // Returns the error ErrBlockUpdate if the Block was not updated and database did not error,
 // otherwise database error.
-func (repo *BlockRepo) Update(ctx context.Context, m *Block, skipZeroValues bool) error {
+func (repo *BlockRepo) Update(ctx context.Context, m *Block, opts ...UpdateBlockOptions) error {
+	var uOpts updateBlockOptions
+
+	for _, opt := range opts {
+		opt(&uOpts)
+	}
+
 	var (
 		sets   []string
 		where  []string
@@ -330,12 +382,16 @@ func (repo *BlockRepo) Update(ctx context.Context, m *Block, skipZeroValues bool
 		offset = 1
 	)
 
+	if deps.IsUUIDZero(m.ID) {
+		return errors.Wrapf(ErrBlockUpdate, "field ID is required")
+	}
+
 	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, offset))
 	args = append(args, m.ID)
 
 	offset++
 
-	if skipZeroValues {
+	if uOpts.skipZeroValues {
 		if int(m.ChainID) != 0 {
 			sets = append(sets, fmt.Sprintf("%s = $%d", repo.colChainID, offset))
 			args = append(args, int(m.ChainID))
@@ -402,12 +458,12 @@ func (repo *BlockRepo) Update(ctx context.Context, m *Block, skipZeroValues bool
 
 	res, err := repo.db.ExecContext(ctx, sql, args...)
 	if err != nil {
-		return err
+		return errors.WrapError(err, ErrBlockUpdate)
 	}
 
 	rowsAffected, err := res.RowsAffected()
 	if err != nil {
-		return err
+		return errors.WrapError(err, ErrBlockUpdate)
 	}
 
 	if rowsAffected == 0 {
@@ -425,6 +481,10 @@ func (repo *BlockRepo) Delete(ctx context.Context, m *Block) error {
 		where []string
 		args  []interface{}
 	)
+
+	if deps.IsUUIDZero(m.ID) {
+		return errors.Wrapf(ErrBlockDelete, "field ID is required")
+	}
 
 	where = append(where, fmt.Sprintf("%s = $%d", repo.colID, 1))
 	args = append(args, m.ID)

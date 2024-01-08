@@ -28,10 +28,19 @@ type EventRow interface {
 	Scan(dest ...any) error
 }
 
+// EventSQLDB is an interface for anything that can execute the SQL statements needed to
+// perform the Event operations.
+type EventSQLDB interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
 // EventRepo is a repository for the Event.
 type EventRepo struct {
 	// db is the database connection.
-	db *sql.DB
+	db EventSQLDB
 
 	// table is the table name.
 	table string
@@ -51,7 +60,7 @@ type EventRepo struct {
 }
 
 // NewEventRepo creates a new EventRepo.
-func NewEventRepo(db *sql.DB, table string) *EventRepo {
+func NewEventRepo(db EventSQLDB, table string) *EventRepo {
 	return &EventRepo{
 		db:    db,
 		table: table,
@@ -62,6 +71,24 @@ func NewEventRepo(db *sql.DB, table string) *EventRepo {
 		colSequence:  "sequence",
 		colMetadata:  "metadata",
 		colCreatedAt: "created_at",
+	}
+}
+
+// Table returns the table name.
+func (repo *EventRepo) Table() string {
+	return repo.table
+}
+
+// Cols returns the represented cols of Event.
+// Cols are returned in the order they are scanned.
+func (repo *EventRepo) Cols() []string {
+	return []string{
+		repo.colID,
+		repo.colTopic,
+		repo.colKey,
+		repo.colSequence,
+		repo.colMetadata,
+		repo.colCreatedAt,
 	}
 }
 

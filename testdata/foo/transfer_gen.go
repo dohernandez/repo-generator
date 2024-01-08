@@ -7,11 +7,11 @@ import (
 	"database/sql"
 	"fmt"
 	"math/big"
+	"repo-generator/testdata/deps"
 	"strings"
 	"time"
 
 	"github.com/dohernandez/errors"
-	"github.com/dohernandez/repo-generator/testdata/deps"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -31,10 +31,19 @@ type TransferRow interface {
 	Scan(dest ...any) error
 }
 
+// TransferSQLDB is an interface for anything that can execute the SQL statements needed to
+// perform the Transfer operations.
+type TransferSQLDB interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	ExecContext(ctx context.Context, q string, args ...interface{}) (sql.Result, error)
+	BeginTx(ctx context.Context, opts *sql.TxOptions) (*sql.Tx, error)
+}
+
 // TransferRepo is a repository for the Transfer.
 type TransferRepo struct {
 	// db is the database connection.
-	db *sql.DB
+	db TransferSQLDB
 
 	// table is the table name.
 	table string
@@ -68,7 +77,7 @@ type TransferRepo struct {
 }
 
 // NewTransferRepo creates a new TransferRepo.
-func NewTransferRepo(db *sql.DB, table string) *TransferRepo {
+func NewTransferRepo(db TransferSQLDB, table string) *TransferRepo {
 	return &TransferRepo{
 		db:    db,
 		table: table,
@@ -89,6 +98,31 @@ func NewTransferRepo(db *sql.DB, table string) *TransferRepo {
 	}
 }
 
+// Table returns the table name.
+func (repo *TransferRepo) Table() string {
+	return repo.table
+}
+
+// Cols returns the represented cols of Transfer.
+// Cols are returned in the order they are scanned.
+func (repo *TransferRepo) Cols() []string {
+	return []string{
+		repo.colID,
+		repo.colChainID,
+		repo.colBlockHash,
+		repo.colBlockTimestamp,
+		repo.colTransactionHash,
+		repo.colMethodID,
+		repo.colFromAddress,
+		repo.colToAddress,
+		repo.colAssetContract,
+		repo.colValue,
+		repo.colMetadata,
+		repo.colTraceAddress,
+		repo.colCreatedAt,
+	}
+}
+
 // Scan scans a Transfer from the given TransferRow (sql.Row|sql.Rows).
 func (repo *TransferRepo) Scan(_ context.Context, s TransferRow) (*Transfer, error) {
 	var (
@@ -97,7 +131,7 @@ func (repo *TransferRepo) Scan(_ context.Context, s TransferRow) (*Transfer, err
 		blockHash string
 
 		transactionHash sql.NullString
-		methodID        sql.NullString
+		methodId        sql.NullString
 		fromAddress     string
 		toAddress       sql.NullString
 		assetContract   string
@@ -112,14 +146,14 @@ func (repo *TransferRepo) Scan(_ context.Context, s TransferRow) (*Transfer, err
 		&blockHash,
 		&m.BlockTimestamp,
 		&transactionHash,
-		&methodID,
+		&methodId,
 		&fromAddress,
 		&toAddress,
 		&assetContract,
 		&value,
 		&m.Metadata,
 		&m.TraceAddress,
-		&m.CreatedAt,
+		&createdAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -141,8 +175,8 @@ func (repo *TransferRepo) Scan(_ context.Context, s TransferRow) (*Transfer, err
 		m.TransactionHash = toTransactionHash(transactionHash.String)
 	}
 
-	if methodID.Valid {
-		tmp := methodID.String
+	if methodId.Valid {
+		tmp := methodId.String
 		m.MethodID = &tmp
 	}
 
@@ -191,6 +225,8 @@ func (repo *TransferRepo) Create(ctx context.Context, m *Transfer) (*Transfer, e
 		args []interface{}
 	)
 
+	// TODO: For the correct operation of the code, the nil method must be implemented for repo.colID.
+	// Define the method using the tag 'nil'.
 	cols = append(cols, repo.colID)
 	args = append(args, m.ID.String())
 
@@ -214,13 +250,13 @@ func (repo *TransferRepo) Create(ctx context.Context, m *Transfer) (*Transfer, e
 	}
 
 	if m.MethodID != nil {
-		var methodID sql.NullString
+		var methodId sql.NullString
 
-		methodID.String = *m.MethodID
-		methodID.Valid = true
+		methodId.String = *m.MethodID
+		methodId.Valid = true
 
 		cols = append(cols, repo.colMethodID)
-		args = append(args, methodID)
+		args = append(args, methodId)
 	}
 
 	cols = append(cols, repo.colFromAddress)

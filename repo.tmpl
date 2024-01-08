@@ -177,10 +177,10 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Create(ctx context.Conte
     )
 
     {{- range $i, $field := $repo.ColKeysFields }}
-        {{ fieldToCreateSql $field }}
+        {{ fieldToCreateSQL $field }}
     {{- end }}
     {{- range $i, $field := $repo.ColStatesFields }}
-        {{ fieldToCreateSql $field }}
+        {{ fieldToCreateSQL $field }}
     {{- end }}
 
     values := make([]string, len(cols))
@@ -254,10 +254,10 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Insert(ctx context.Conte
         valuesQueryBuilder.WriteString({{ $repo.Receiver }}.valuesStatement(cols, indexOffset, idx != lms-1))
 
         {{- range $i, $field := $repo.ColKeysFields }}
-            {{ fieldToInsertSql $field }}
+            {{ fieldToInsertSQL $field }}
         {{- end }}
         {{- range $i, $field := $repo.ColStatesFields }}
-            {{ fieldToInsertSql $field }}
+            {{ fieldToInsertSQL $field }}
         {{- end -}}
     }
 
@@ -349,11 +349,11 @@ func ({{ $repo.Receiver }} *{{ $repo.Model.Name }}Repo) Update(ctx context.Conte
 
     if uOpts.skipZeroValues {
         {{- range $i, $field := $repo.ColStatesFields -}}
-            {{ fieldToUpdateSql $field true }}
+            {{ fieldToUpdateSQL $field true }}
         {{ end -}}
     } else {
         {{- range $i, $field := $repo.ColStatesFields -}}
-            {{ fieldToUpdateSql $field false }}
+            {{ fieldToUpdateSQL $field false }}
         {{ end -}}
     }
 

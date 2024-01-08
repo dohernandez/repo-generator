@@ -6,6 +6,7 @@ import (
 	"github.com/iancoleman/strcase"
 )
 
+// Receiver returns the receiver of the repo.
 func Receiver(r string) string {
 	words := strings.Split(strcase.ToSnake(r), "_")
 

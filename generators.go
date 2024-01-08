@@ -39,6 +39,9 @@ func Generate(sourcePath, outputPath string, model string, opts ...Option) error
 		opt(&options)
 	}
 
+	//nolint:godox
+	// TODO: add parameters validation
+
 	fset := token.NewFileSet()
 
 	tree, err := parser.ParseFile(fset, sourcePath, nil, 0)

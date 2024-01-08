@@ -3,3 +3,6 @@ plugins:
     package: github.com/dohernandez/storage
     makefiles_path: makefiles
     main: main.mk
+  - name: local
+    makefiles_path: makefiles
+    main: main.mk

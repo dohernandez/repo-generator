@@ -37,6 +37,10 @@ endif
 
 # Add your custom targets here.
 
+BUILD_LDFLAGS="-s -w"
+BUILD_PKG = ./cmd/...
+BINARY_NAME = repo-generator
+
 .PHONY:
 
 GITHUB_ACTIONS_RELEASE_ASSETS = true

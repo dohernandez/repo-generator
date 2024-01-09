@@ -41,18 +41,22 @@ var rootCmd = &cobra.Command{
 		)
 		// Your logic for handling the selected functionalities
 		if create {
+			options = append(options, generator.WithCreateFunc())
 			optFlags = append(optFlags, "--create")
 		}
 
 		if insert {
+			options = append(options, generator.WithInsertFunc())
 			optFlags = append(optFlags, "--insert")
 		}
 
 		if update {
+			options = append(options, generator.WithUpdateFunc())
 			optFlags = append(optFlags, "--update")
 		}
 
 		if del {
+			options = append(options, generator.WithDeleteFunc())
 			optFlags = append(optFlags, "--delete")
 		}
 

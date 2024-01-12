@@ -6,6 +6,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dohernandez/dev v0.12.1 h1:lFqda2/SqHupjA+eIaGgdWM1HPxXDWH5bLJvCBVwZoA=
 github.com/dohernandez/dev v0.12.1/go.mod h1:wD9owTM9rveq54KvgDhoP8G5ntMf/XdbI/xonKbLWkY=
+github.com/dohernandez/dev v0.14.2 h1:wxT+qnS/X16eWLOFIqDCx8viKr12MJ8zkebFFQkAWzo=
+github.com/dohernandez/dev v0.14.2/go.mod h1:wD9owTM9rveq54KvgDhoP8G5ntMf/XdbI/xonKbLWkY=
 github.com/dohernandez/errors v0.0.0-20231017211553-9f8df5e0169a h1:u+JsU1xxhrC3qxy48+3+v5vX2aWfDygY3cYaRDiek6c=
 github.com/dohernandez/errors v0.0.0-20231017211553-9f8df5e0169a/go.mod h1:icPZ1kFrVXAbkE9o/jJQQZ30uwfmjHFaDlXXghbpPWs=
 github.com/dohernandez/storage v0.3.6 h1:zweqUoJsXxEYIKl/Eb8vlQGIzL4AxwTfT2uwwG1Hbn4=

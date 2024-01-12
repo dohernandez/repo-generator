@@ -6,3 +6,6 @@ plugins:
   - name: local
     makefiles_path: makefiles
     main: main.mk
+  - name: local-test
+    makefiles_path: internal/makefiles
+    main: main.mk

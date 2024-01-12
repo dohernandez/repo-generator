@@ -33,6 +33,7 @@ endif
 -include $(PLUGIN_DOHERNANDEZSTORAGE_MAKEFILES_PATH)/github-actions.mk
 -include $(PLUGIN_LOCAL_MAKEFILES_PATH)/repo-generator.mk
 -include $(PLUGIN_BOOL64DEV_MAKEFILES_PATH)/build.mk
+-include $(PLUGIN_LOCALTEST_MAKEFILES_PATH)/github.mk
 # End extra recipes here.
 
 # DO NOT EDIT ANYTHING BELOW THIS LINE.

@@ -14,3 +14,15 @@ updates:
         update-types:
           - "minor"
           - "patch"
+  - package-ecosystem: gomod
+    directory: /testdata
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 1
+    groups:
+      test-dependencies:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch

@@ -16,7 +16,6 @@ env:
   TARGET_DELTA_COV: 90 # Target coverage of changed lines, in percents
   POSTGRES_TEST_USER: runner
   POSTGRES_TEST_PASSWORD: postgres_password
-  POSTGRES_TEST_FLAGS: sslmode=disable&client_encoding=UTF8&
 jobs:
   test:
     strategy:
@@ -72,7 +71,6 @@ jobs:
         env:
           POSTGRES_TEST_USER: ${{ env.POSTGRES_TEST_USER }}
           POSTGRES_TEST_PASSWORD: ${{ env.POSTGRES_TEST_PASSWORD }}
-          POSTGRES_TEST_FLAGS: ${{ env.POSTGRES_TEST_FLAGS }}
       - name: Test
         id: test
         run: |
@@ -84,7 +82,6 @@ jobs:
         env:
           POSTGRES_TEST_USER: ${{ env.POSTGRES_TEST_USER }}
           POSTGRES_TEST_PASSWORD: ${{ env.POSTGRES_TEST_PASSWORD }}
-          POSTGRES_TEST_FLAGS: ${{ env.POSTGRES_TEST_FLAGS }}
       - name: Annotate missing test coverage
         id: annotate
         if: matrix.go-version == env.COV_GO_VERSION && github.event.pull_request.base.sha != ''

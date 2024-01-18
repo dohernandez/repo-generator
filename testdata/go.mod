@@ -3,13 +3,13 @@ module repo-generator/testdata
 go 1.19
 
 require (
-	github.com/dohernandez/dev v0.14.4
+	github.com/dohernandez/dev v0.16.0
 	github.com/dohernandez/errors v0.0.0-20231017211553-9f8df5e0169a
-	github.com/dohernandez/storage v0.3.13
+	github.com/dohernandez/storage v0.3.14
 	github.com/ethereum/go-ethereum v1.13.10
 	github.com/google/uuid v1.5.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
-	github.com/jackc/pgx/v5 v5.5.1
+	github.com/jackc/pgx/v5 v5.5.2
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.8.4
 )
